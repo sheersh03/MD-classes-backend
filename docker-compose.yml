@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-md_portal}
+      POSTGRES_USER: ${POSTGRES_USER:-md_portal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-md_portal}
+    ports:
+      - "5432:5432"
+    volumes:
+      - md_portal_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-md_portal} -d ${POSTGRES_DB:-md_portal}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      MD_JWT_SECRET: ${MD_JWT_SECRET}
+      MD_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-md_portal}
+      MD_DB_USER: ${POSTGRES_USER:-md_portal}
+      MD_DB_PASSWORD: ${POSTGRES_PASSWORD:-md_portal}
+    ports:
+      - "8080:8080"
+
+volumes:
+  md_portal_pgdata:

@@ -1,21 +1,21 @@
-\# Student Portal API Documentation
+# Student Portal API Documentation
 
-\#\# Project Overview
+## Project Overview
 
 The Student Portal is a platform designed to track and manage a student's academic journey.
 
-\#\#\# User Roles
+### User Roles
 
-1\. Admin  
-2\. Teacher  
-3\. Student  
-4\. Parent (Optional)
+1. Admin  
+2. Teacher  
+3. Student  
+4. Parent (Optional)
 
-\---
+---
 
-\# Authentication Module
+# Authentication Module
 
-\#\# Login
+## Login
 
 POST /api/auth/login
 
@@ -29,27 +29,27 @@ Request:
 Response:
 
 {  
-  "token": "jwt\_token",  
+  "token": "jwt_token",  
   "role": "student"  
 }
 
-\#\# Logout
+## Logout
 
 POST /api/auth/logout
 
-\#\# Forgot Password
+## Forgot Password
 
 POST /api/auth/forgot-password
 
-\#\# Reset Password
+## Reset Password
 
 POST /api/auth/reset-password
 
-\---
+---
 
-\# Student Management Module
+# Student Management Module
 
-\#\# Create Student
+## Create Student
 
 POST /api/students
 
@@ -61,23 +61,23 @@ POST /api/students
   "batchId": "B001"  
 }
 
-\#\# Get Student Details
+## Get Student Details
 
 GET /api/students/{studentId}
 
-\#\# Update Student
+## Update Student
 
 PUT /api/students/{studentId}
 
-\#\# Delete Student
+## Delete Student
 
 DELETE /api/students/{studentId}
 
-\---
+---
 
-\# Attendance Module
+# Attendance Module
 
-\#\# Mark Attendance
+## Mark Attendance
 
 POST /api/attendance
 
@@ -87,11 +87,11 @@ POST /api/attendance
   "status": "PRESENT"  
 }
 
-\#\# Get Attendance
+## Get Attendance
 
 GET /api/attendance/student/{studentId}
 
-\#\# Attendance Summary
+## Attendance Summary
 
 GET /api/attendance/student/{studentId}/summary
 
@@ -101,11 +101,11 @@ GET /api/attendance/student/{studentId}/summary
   "percentage": 92  
 }
 
-\---
+---
 
-\# Weekly Test Module
+# Weekly Test Module
 
-\#\# Create Test
+## Create Test
 
 POST /api/tests
 
@@ -115,7 +115,7 @@ POST /api/tests
   "date": "2026-06-20"  
 }
 
-\#\# Add Result
+## Add Result
 
 POST /api/tests/results
 
@@ -125,28 +125,28 @@ POST /api/tests/results
   "marks": 85  
 }
 
-\#\# Get Test History
+## Get Test History
 
 GET /api/tests/student/{studentId}
 
-\#\# Get Performance Trend
+## Get Performance Trend
 
 GET /api/tests/student/{studentId}/analytics
 
-\---
+---
 
-\# Notes Management Module
+# Notes Management Module
 
-\#\# Upload Notes
+## Upload Notes
 
 POST /api/notes
 
 Fields:  
-\- title  
-\- subject  
-\- pdf
+- title  
+- subject  
+- pdf
 
-\#\# Get Notes
+## Get Notes
 
 GET /api/notes
 
@@ -154,31 +154,31 @@ Filter Example:
 
 GET /api/notes?subject=java
 
-\#\# Download Notes
+## Download Notes
 
 GET /api/notes/{id}
 
-\---
+---
 
-\# Assignment Module
+# Assignment Module
 
-\#\# Create Assignment
+## Create Assignment
 
 POST /api/assignments
 
-\#\# Submit Assignment
+## Submit Assignment
 
 POST /api/assignments/{id}/submit
 
-\#\# View Submissions
+## View Submissions
 
 GET /api/assignments/{id}/submissions
 
-\---
+---
 
-\# Announcement Module
+# Announcement Module
 
-\#\# Create Announcement
+## Create Announcement
 
 POST /api/announcements
 
@@ -187,19 +187,19 @@ POST /api/announcements
   "description": "Institute closed tomorrow"  
 }
 
-\#\# Get Announcements
+## Get Announcements
 
 GET /api/announcements
 
-\---
+---
 
-\# Fee Management Module
+# Fee Management Module
 
-\#\# Add Fee Record
+## Add Fee Record
 
 POST /api/fees
 
-\#\# Get Student Fee Status
+## Get Student Fee Status
 
 GET /api/fees/student/{studentId}
 
@@ -209,25 +209,25 @@ GET /api/fees/student/{studentId}
   "remaining": 20000  
 }
 
-\---
+---
 
-\# Parent Portal Module
+# Parent Portal Module
 
-\#\# Parent Login
+## Parent Login
 
 POST /api/parents/login
 
 Features:  
-\- Attendance Tracking  
-\- Test Results  
-\- Fee Status  
-\- Announcements
+- Attendance Tracking  
+- Test Results  
+- Fee Status  
+- Announcements
 
-\---
+---
 
-\# Progress Analytics Module
+# Progress Analytics Module
 
-\#\# Student Dashboard
+## Student Dashboard
 
 GET /api/progress/student/{studentId}
 
@@ -237,243 +237,243 @@ GET /api/progress/student/{studentId}
   "rank": 10  
 }
 
-\---
+---
 
-\# Batch Management Module
+# Batch Management Module
 
-\#\# Create Batch
+## Create Batch
 
 POST /api/batches
 
-\#\# Get All Batches
+## Get All Batches
 
 GET /api/batches
 
-\#\# Assign Student To Batch
+## Assign Student To Batch
 
 POST /api/batches/{batchId}/students
 
-\---
+---
 
-\# Course Management Module
+# Course Management Module
 
-\#\# Create Course
+## Create Course
 
 POST /api/courses
 
-\#\# Get Courses
+## Get Courses
 
 GET /api/courses
 
-\#\# Update Course
+## Update Course
 
 PUT /api/courses/{courseId}
 
-\---
+---
 
-\# Notification Module
+# Notification Module
 
-\#\# Send Notification
+## Send Notification
 
 POST /api/notifications
 
 Notification Types:  
-\- Email  
-\- SMS  
-\- In-App Notification
+- Email  
+- SMS  
+- In-App Notification
 
-\---
+---
 
-\# File Storage Module
+# File Storage Module
 
 Supported Files:  
-\- Notes PDFs  
-\- Assignments  
-\- Student Documents  
-\- Certificates
+- Notes PDFs  
+- Assignments  
+- Student Documents  
+- Certificates
 
 Recommended Storage:  
-\- AWS S3  
-\- Cloudinary  
-\- Firebase Storage
+- AWS S3  
+- Cloudinary  
+- Firebase Storage
 
-\---
+---
 
-\# Role-Based Access Control
+# Role-Based Access Control
 
-\#\# Admin  
-\- Full Access  
-\- Manage Students  
-\- Manage Teachers  
-\- Manage Courses  
-\- Manage Batches
+## Admin  
+- Full Access  
+- Manage Students  
+- Manage Teachers  
+- Manage Courses  
+- Manage Batches
 
-\#\# Teacher  
-\- Mark Attendance  
-\- Upload Notes  
-\- Create Tests  
-\- Create Assignments
+## Teacher  
+- Mark Attendance  
+- Upload Notes  
+- Create Tests  
+- Create Assignments
 
-\#\# Student  
-\- View Attendance  
-\- View Results  
-\- Download Notes  
-\- Submit Assignments
+## Student  
+- View Attendance  
+- View Results  
+- Download Notes  
+- Submit Assignments
 
-\#\# Parent  
-\- View Student Progress  
-\- View Attendance  
-\- View Fee Status
+## Parent  
+- View Student Progress  
+- View Attendance  
+- View Fee Status
 
-\---
+---
 
-\# Security Requirements
+# Security Requirements
 
-\#\# Authentication  
-\- JWT Authentication  
-\- Refresh Tokens
+## Authentication  
+- JWT Authentication  
+- Refresh Tokens
 
-\#\# Authorization  
-\- Role-Based Access Control (RBAC)
+## Authorization  
+- Role-Based Access Control (RBAC)
 
-\#\# Validation  
-\- Bean Validation  
-\- Request Validation
+## Validation  
+- Bean Validation  
+- Request Validation
 
-\#\# Security  
-\- Password Encryption (BCrypt)  
-\- HTTPS  
-\- CORS Configuration
+## Security  
+- Password Encryption (BCrypt)  
+- HTTPS  
+- CORS Configuration
 
-\---
+---
 
-\# Recommended Technology Stack
+# Recommended Technology Stack
 
-\#\# Backend  
-\- Spring Boot  
-\- Spring Security  
-\- Spring Data JPA  
-\- MySQL
+## Backend  
+- Spring Boot  
+- Spring Security  
+- Spring Data JPA  
+- MySQL
 
-\#\# Frontend  
-\- React.js  
-\- Tailwind CSS
+## Frontend  
+- React.js  
+- Tailwind CSS
 
-\#\# DevOps  
-\- Docker  
-\- GitHub Actions
+## DevOps  
+- Docker  
+- GitHub Actions
 
-\#\# Cloud  
-\- AWS  
-\- Firebase
+## Cloud  
+- AWS  
+- Firebase
 
-\---
+---
 
-\# Database Tables
+# Database Tables
 
 User  
-\- id  
-\- name  
-\- email  
-\- password  
-\- role  
-\- created\_at  
-\- updated\_at
+- id  
+- name  
+- email  
+- password  
+- role  
+- created_at  
+- updated_at
 
 Student  
-\- id  
-\- user\_id  
-\- course\_id  
-\- batch\_id  
-\- phone
+- id  
+- user_id  
+- course_id  
+- batch_id  
+- phone
 
 Teacher  
-\- id  
-\- user\_id  
-\- specialization
+- id  
+- user_id  
+- specialization
 
 Course  
-\- id  
-\- course\_name  
-\- description  
-\- duration
+- id  
+- course_name  
+- description  
+- duration
 
 Batch  
-\- id  
-\- batch\_name  
-\- start\_date  
-\- end\_date
+- id  
+- batch_name  
+- start_date  
+- end_date
 
 Attendance  
-\- id  
-\- student\_id  
-\- date  
-\- status
+- id  
+- student_id  
+- date  
+- status
 
 Test  
-\- id  
-\- title  
-\- max\_marks  
-\- date
+- id  
+- title  
+- max_marks  
+- date
 
-Test\_Result  
-\- id  
-\- student\_id  
-\- test\_id  
-\- marks
+Test_Result  
+- id  
+- student_id  
+- test_id  
+- marks
 
 Notes  
-\- id  
-\- title  
-\- subject  
-\- file\_url  
-\- uploaded\_by
+- id  
+- title  
+- subject  
+- file_url  
+- uploaded_by
 
 Assignment  
-\- id  
-\- title  
-\- description  
-\- due\_date
+- id  
+- title  
+- description  
+- due_date
 
 Submission  
-\- id  
-\- assignment\_id  
-\- student\_id  
-\- file\_url  
-\- submitted\_at
+- id  
+- assignment_id  
+- student_id  
+- file_url  
+- submitted_at
 
 Fee  
-\- id  
-\- student\_id  
-\- amount  
-\- status  
-\- payment\_date
+- id  
+- student_id  
+- amount  
+- status  
+- payment_date
 
 Announcement  
-\- id  
-\- title  
-\- description  
-\- created\_at
+- id  
+- title  
+- description  
+- created_at
 
-\---
+---
 
-\# Future Enhancements
+# Future Enhancements
 
-\- AI Performance Analysis  
-\- Student Ranking System  
-\- Placement Tracking  
-\- Interview Preparation Module  
-\- Coding Contest Module  
-\- Live Classes Integration  
-\- Attendance QR Scanner  
-\- Mobile Application  
-\- Parent Notification System  
-\- Certificate Generation  
-\- Student Resume Builder
+- AI Performance Analysis  
+- Student Ranking System  
+- Placement Tracking  
+- Interview Preparation Module  
+- Coding Contest Module  
+- Live Classes Integration  
+- Attendance QR Scanner  
+- Mobile Application  
+- Parent Notification System  
+- Certificate Generation  
+- Student Resume Builder
 
-\---
+---
 
-\# Project Architecture
+# Project Architecture
 
 React Frontend  
       |  

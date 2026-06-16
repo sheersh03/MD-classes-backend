@@ -1,4 +1,4 @@
-package md_classes.portal;
+package md_classes.portal.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;

@@ -35,3 +35,9 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### MD-classes-backend project ###
+.code-review-graph/
+application-local.properties
+.env
+*.log
