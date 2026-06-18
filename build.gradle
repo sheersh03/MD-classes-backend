@@ -31,6 +31,7 @@ dependencies {
 	implementation 'com.auth0:java-jwt:4.4.0'
 
 	runtimeOnly 'org.postgresql:postgresql'
+	runtimeOnly 'com.h2database:h2'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
@@ -42,3 +43,21 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+tasks.named('bootRun') {
+	if (file(".env").exists()) {
+		file(".env").readLines().each { line ->
+			def trimmed = line.trim()
+			if (!trimmed.isEmpty() && !trimmed.startsWith("#") && trimmed.contains("=")) {
+				def parts = trimmed.split("=", 2)
+				def key = parts[0].trim()
+				def value = parts[1].trim()
+				if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+					value = value.substring(1, value.length() - 1)
+				}
+				environment key, value
+			}
+		}
+	}
+}
+

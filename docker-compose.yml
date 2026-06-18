@@ -23,6 +23,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: local
       MD_JWT_SECRET: ${MD_JWT_SECRET}
+      MD_ALLOWED_ORIGINS: ${MD_ALLOWED_ORIGINS:-*}
       MD_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-md_portal}
       MD_DB_USER: ${POSTGRES_USER:-md_portal}
       MD_DB_PASSWORD: ${POSTGRES_PASSWORD:-md_portal}

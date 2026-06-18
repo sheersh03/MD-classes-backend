@@ -4,8 +4,8 @@ CREATE TABLE users (
     email         TEXT        NOT NULL UNIQUE,
     password_hash TEXT        NOT NULL,
     role          TEXT        NOT NULL CHECK (role IN ('ADMIN', 'TEACHER', 'STUDENT', 'PARENT')),
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_users_email ON users (email);
@@ -16,8 +16,8 @@ CREATE TABLE students (
     course     TEXT,
     batch_id   TEXT,
     phone      TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_students_user_id ON students (user_id);

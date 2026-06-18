@@ -1,5 +1,6 @@
 package md_classes.portal.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -21,9 +22,14 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final List<String> allowedOrigins;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+    public SecurityConfig(
+            JwtAuthFilter jwtAuthFilter,
+            @Value("${app.cors.allowed-origins:*}") List<String> allowedOrigins
+    ) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.allowedOrigins = allowedOrigins;
     }
 
     @Bean
@@ -33,9 +39,8 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        // TODO: tighten allowed origins before any non-local deploy.
         CorsConfiguration cors = new CorsConfiguration();
-        cors.setAllowedOrigins(List.of("*"));
+        cors.setAllowedOrigins(allowedOrigins);
         cors.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         cors.setAllowedHeaders(List.of("*"));
         cors.setExposedHeaders(List.of("Authorization"));
@@ -44,11 +49,13 @@ public class SecurityConfig {
         return source;
     }
 
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {})
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -58,7 +65,11 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/actuator/health",
-                                "/world"
+                                "/world",
+                                "/h2-console/**",
+                                "/login",
+                                "/error",
+                                "/dashboard"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
