@@ -1,5 +1,6 @@
 package md_classes.portal.config;
 
+import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -58,18 +59,26 @@ public class SecurityConfig {
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
-                                "/api/auth/**",
+                                "/apiv1/auth/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/actuator/health",
-                                "/world",
+                                "/apiv1/world",
                                 "/h2-console/**",
                                 "/login",
                                 "/error",
-                                "/dashboard"
+                                "/dashboard",
+                                "/student-dashboard",
+                                "/parent-dashboard",
+                                "/apiv1/student-dashboard/login",
+                                "/apiv1/parent-dashboard/login",
+                                "/css/**",
+                                "/js/**",
+                                "/syllabus/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

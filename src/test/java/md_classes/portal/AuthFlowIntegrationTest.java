@@ -43,7 +43,7 @@ class AuthFlowIntegrationTest {
         String registerBody = """
                 {"name":"Admin","email":"admin-it@md.test","password":"hunter22hunter22","role":"ADMIN"}
                 """;
-        MvcResult registerResult = mvc.perform(post("/api/auth/register")
+        MvcResult registerResult = mvc.perform(post("/apiv1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON).content(registerBody))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.accessToken").isString())
@@ -58,13 +58,13 @@ class AuthFlowIntegrationTest {
         assertThat(accessToken).isNotBlank();
 
         // 2. duplicate register → 409
-        mvc.perform(post("/api/auth/register")
+        mvc.perform(post("/apiv1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON).content(registerBody))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("DUPLICATE_EMAIL"));
 
         // 3. login bad password → 401
-        mvc.perform(post("/api/auth/login")
+        mvc.perform(post("/apiv1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"admin-it@md.test","password":"wrong-password"}
@@ -73,7 +73,7 @@ class AuthFlowIntegrationTest {
                 .andExpect(jsonPath("$.code").value("BAD_CREDENTIALS"));
 
         // 4. login OK → tokens
-        MvcResult loginResult = mvc.perform(post("/api/auth/login")
+        MvcResult loginResult = mvc.perform(post("/apiv1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"admin-it@md.test","password":"hunter22hunter22"}
@@ -84,34 +84,36 @@ class AuthFlowIntegrationTest {
                 .get("accessToken").asText();
 
         // 5. protected endpoint without token → 401
-        mvc.perform(get("/api/students"))
+        mvc.perform(get("/apiv1/students"))
                 .andExpect(status().isUnauthorized());
 
         // 6. protected endpoint with bad token → 401
-        mvc.perform(get("/api/students").header("Authorization", "Bearer junk.token.value"))
+        mvc.perform(get("/apiv1/students").header("Authorization", "Bearer junk.token.value"))
                 .andExpect(status().isUnauthorized());
 
         // 7. protected endpoint with good token → 200, empty list
-        mvc.perform(get("/api/students").header("Authorization", "Bearer " + loginAccess))
+        mvc.perform(get("/apiv1/students").header("Authorization", "Bearer " + loginAccess))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray());
 
         // 8. admin creates a student
         String createBody = """
-                {"name":"Yash","email":"yash-it@md.test","password":"yashpass1","phone":"9876543210","course":"Java Full Stack","batchId":"B001"}
+                {"name":"Yash","email":"yash-it@md.test","password":"yashpass1","phone":"9876543210","course":"Java Full Stack","batchId":"B001","studentClass":"Class 10"}
                 """;
-        MvcResult createResult = mvc.perform(post("/api/students")
+        MvcResult createResult = mvc.perform(post("/apiv1/students")
                         .header("Authorization", "Bearer " + loginAccess)
                         .contentType(MediaType.APPLICATION_JSON).content(createBody))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.email").value("yash-it@md.test"))
                 .andExpect(jsonPath("$.course").value("Java Full Stack"))
+                .andExpect(jsonPath("$.password").value("yashpass1"))
+                .andExpect(jsonPath("$.studentClass").value("Class 10"))
                 .andReturn();
         Long studentId = json.readTree(createResult.getResponse().getContentAsString())
                 .get("id").asLong();
 
         // 9. student logs in
-        MvcResult studentLogin = mvc.perform(post("/api/auth/login")
+        MvcResult studentLogin = mvc.perform(post("/apiv1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"yash-it@md.test","password":"yashpass1"}
@@ -122,12 +124,12 @@ class AuthFlowIntegrationTest {
                 .get("accessToken").asText();
 
         // 10. student CANNOT delete (403)
-        mvc.perform(delete("/api/students/" + studentId)
+        mvc.perform(delete("/apiv1/students/" + studentId)
                         .header("Authorization", "Bearer " + studentAccess))
                 .andExpect(status().isForbidden());
 
         // 11. student CAN view own record
-        mvc.perform(get("/api/students/" + studentId)
+        mvc.perform(get("/apiv1/students/" + studentId)
                         .header("Authorization", "Bearer " + studentAccess))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("yash-it@md.test"));
@@ -136,9 +138,54 @@ class AuthFlowIntegrationTest {
         String refreshBody = """
                 {"refreshToken":"%s"}
                 """.formatted(refreshToken);
-        mvc.perform(post("/api/auth/refresh")
+        mvc.perform(post("/apiv1/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON).content(refreshBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isString());
+
+        // 13. admin resets student's password
+        String resetByAdminBody = """
+                {"password":"newyashpass"}
+                """;
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/apiv1/students/" + studentId)
+                        .header("Authorization", "Bearer " + loginAccess)
+                        .contentType(MediaType.APPLICATION_JSON).content(resetByAdminBody))
+                .andExpect(status().isOk());
+
+        // verify student can login with new password reset by admin
+        mvc.perform(post("/apiv1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"yash-it@md.test","password":"newyashpass"}
+                                """))
+                .andExpect(status().isOk());
+
+        // 14. self-service forgot and reset password flow
+        String forgotBody = """
+                {"email":"yash-it@md.test"}
+                """;
+        MvcResult forgotResult = mvc.perform(post("/apiv1/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON).content(forgotBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isString())
+                .andReturn();
+
+        String resetToken = json.readTree(forgotResult.getResponse().getContentAsString())
+                .get("token").asText();
+
+        String resetBody = """
+                {"token":"%s","newPassword":"finalpassyash"}
+                """.formatted(resetToken);
+        mvc.perform(post("/apiv1/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON).content(resetBody))
+                .andExpect(status().isOk());
+
+        // verify student can login with self-service reset password
+        mvc.perform(post("/apiv1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"yash-it@md.test","password":"finalpassyash"}
+                                """))
+                .andExpect(status().isOk());
     }
 }

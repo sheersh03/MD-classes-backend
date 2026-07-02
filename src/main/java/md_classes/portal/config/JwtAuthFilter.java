@@ -54,10 +54,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     List.of(new SimpleGrantedAuthority("ROLE_" + role.name()))
             );
             SecurityContextHolder.getContext().setAuthentication(auth);
+            log.info("JWT Auth: authenticated user {} with role {}", userId, role);
         } catch (Exception e) {
-            // Bad/expired/missing-type token → clear and let the security chain reject with 401
             SecurityContextHolder.clearContext();
-            log.debug("rejected jwt: {}", e.getMessage());
+            log.warn("JWT Auth failed for token: {}", e.getMessage());
         }
 
         chain.doFilter(request, response);

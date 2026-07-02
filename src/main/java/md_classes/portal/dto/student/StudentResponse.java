@@ -12,6 +12,8 @@ public record StudentResponse(
         String phone,
         String course,
         String batchId,
+        String studentClass,
+        String password,
         OffsetDateTime createdAt
 ) {
     public static StudentResponse from(Student s) {
@@ -23,6 +25,8 @@ public record StudentResponse(
                 s.getPhone(),
                 s.getCourse(),
                 s.getBatchId(),
+                s.getStudentClass(),
+                s.getPlainPassword(),
                 s.getCreatedAt()
         );
     }

@@ -213,3 +213,71 @@ body {
     from { transform: translateX(100%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
 }
+
+.forgot-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.forgot-link:hover {
+    color: var(--accent-primary);
+    text-decoration: underline;
+}
+
+.dev-token-box {
+    background: rgba(139, 92, 246, 0.05);
+    border: 1px dashed rgba(139, 92, 246, 0.4);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 15px;
+    text-align: left;
+}
+
+.dev-token-title {
+    font-weight: 700;
+    color: #a78bfa;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.dev-token-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.dev-token-textarea {
+    width: 100%;
+    height: 70px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: #34d399;
+    font-family: monospace;
+    font-size: 11px;
+    padding: 8px;
+    resize: none;
+    margin-bottom: 10px;
+    outline: none;
+}
+
+.token-action-btn {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(139, 92, 246, 0.2);
+    color: #c084fc;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.token-action-btn:hover {
+    background: var(--accent-primary);
+    color: white;
+}

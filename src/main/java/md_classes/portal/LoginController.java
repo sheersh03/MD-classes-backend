@@ -15,16 +15,6 @@ import java.util.Map;
 @Controller
 public class LoginController {
 
-    @GetMapping("/login")
-    public String loginPage() {
-        return "login";
-    }
-
-    @GetMapping("/dashboard")
-    public String dashboardPage() {
-        return "dashboard";
-    }
-
     @PostMapping(value = "/login", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public ResponseEntity<Map<String, Object>> loginJson(@RequestBody LoginRequest loginRequest) {

@@ -21,6 +21,7 @@ public class JwtService {
     private static final String CLAIM_EMAIL = "email";
     private static final String TYPE_ACCESS = "access";
     private static final String TYPE_REFRESH = "refresh";
+    private static final String TYPE_RESET = "reset-password";
 
     private final String secret;
     private final Duration accessTtl;
@@ -88,6 +89,27 @@ public class JwtService {
         String type = decoded.getClaim(CLAIM_TYPE).asString();
         if (!TYPE_REFRESH.equals(type)) {
             throw new com.auth0.jwt.exceptions.JWTVerificationException("not a refresh token");
+        }
+        return decoded;
+    }
+
+    public String generateResetToken(User user) {
+        long now = System.currentTimeMillis();
+        return JWT.create()
+                .withIssuer(issuer)
+                .withSubject(String.valueOf(user.getId()))
+                .withClaim(CLAIM_EMAIL, user.getEmail())
+                .withClaim(CLAIM_TYPE, TYPE_RESET)
+                .withIssuedAt(new Date(now))
+                .withExpiresAt(new Date(now + Duration.ofMinutes(15).toMillis()))
+                .sign(algorithm);
+    }
+
+    public DecodedJWT verifyResetToken(String token) {
+        DecodedJWT decoded = verifier.verify(token);
+        String type = decoded.getClaim(CLAIM_TYPE).asString();
+        if (!TYPE_RESET.equals(type)) {
+            throw new com.auth0.jwt.exceptions.JWTVerificationException("not a reset token");
         }
         return decoded;
     }

@@ -3,6 +3,7 @@ package md_classes.portal.controller;
 import jakarta.validation.Valid;
 import md_classes.portal.dto.auth.AuthResponse;
 import md_classes.portal.dto.auth.ForgotPasswordRequest;
+import md_classes.portal.dto.auth.ForgotPasswordResponse;
 import md_classes.portal.dto.auth.LoginRequest;
 import md_classes.portal.dto.auth.RefreshRequest;
 import md_classes.portal.dto.auth.RegisterRequest;
@@ -16,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/auth")
 public class AuthController {
 
     private final AuthService auth;
@@ -33,7 +34,13 @@ public class AuthController {
 
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest req) {
-        return auth.login(req);
+        System.out.println("=== API REQUEST: POST /apiv1/auth/login ===");
+        System.out.println("Request Body: " + req);
+        AuthResponse response = auth.login(req);
+        System.out.println("=== API RESPONSE: POST /apiv1/auth/login ===");
+        System.out.println("Response Body: " + response);
+        System.out.println("==========================================");
+        return response;
     }
 
     @PostMapping("/refresh")
@@ -48,9 +55,8 @@ public class AuthController {
     }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
-        auth.forgotPassword(req);
-        return ResponseEntity.accepted().build();
+    public ForgotPasswordResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
+        return auth.forgotPassword(req);
     }
 
     @PostMapping("/reset-password")

@@ -41,6 +41,8 @@ public class StudentService {
         User user = new User(req.name(), req.email(), encoder.encode(req.password()), Role.STUDENT);
         users.save(user);
         Student student = new Student(user, req.course(), req.batchId(), req.phone());
+        student.setPlainPassword(req.password());
+        student.setStudentClass(req.studentClass());
         students.save(student);
         return StudentResponse.from(student);
     }
@@ -70,6 +72,11 @@ public class StudentService {
         if (req.phone() != null) student.setPhone(req.phone());
         if (req.course() != null) student.setCourse(req.course());
         if (req.batchId() != null) student.setBatchId(req.batchId());
+        if (req.studentClass() != null) student.setStudentClass(req.studentClass());
+        if (req.password() != null && !req.password().trim().isEmpty()) {
+            student.getUser().setPasswordHash(encoder.encode(req.password()));
+            student.setPlainPassword(req.password());
+        }
         return StudentResponse.from(student);
     }
 

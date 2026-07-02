@@ -18,29 +18,45 @@ See `documents/apidesign.md` for the full target API across all 14 modules — t
 
 ## Prerequisites
 
-- JDK 17 (Temurin/OpenJDK)
-- Docker + Docker Compose (for local Postgres)
-- `make` is optional — everything runs via `./gradlew`
+- Docker and Docker Compose (installed and running)
+- JDK 17 (Optional, only needed if running tests or building outside Docker)
 
 ## Quick start
 
 ```sh
 # 1. Configuration
 cp .env.example .env
-cp src/main/resources/application-local.properties.example src/main/resources/application-local.properties
 # Edit .env: set MD_JWT_SECRET to something 32+ chars (e.g. `openssl rand -base64 48`)
+# (A default dev key is pre-configured in the repository for quick start)
 
-# 2. Local Postgres
-docker compose up -d postgres
+# 2. Boot the app and database via Docker Compose (Flyway applies V1 on first run)
+docker compose up --build
 
-# 3. Boot the app (Flyway applies V1 on first run)
-export $(grep -v '^#' .env | xargs)
-./gradlew bootRun
-
-# 4. Sanity check
+# 3. Sanity check
 curl -s localhost:8080/world           # → hello world
-open http://localhost:8080/swagger-ui.html
+# Open OpenAPI UI in browser:
+# http://localhost:8080/swagger-ui.html
 ```
+
+### Useful Docker Compose commands
+
+- **Start in background (detached mode):**
+  ```sh
+  docker compose up --build -d
+  ```
+- **Stop and remove containers (keeps database volumes):**
+  ```sh
+  docker compose down
+  ```
+- **View live application logs:**
+  ```sh
+  docker compose logs -f
+  ```
+- **Clean start (re-create volumes, wipe database):**
+  ```sh
+  docker compose down -v
+  docker compose up --build
+  ```
 
 ## End-to-end smoke
 
