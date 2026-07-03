@@ -24,6 +24,7 @@
             <li><button class="nav-btn active" id="btn-overview" onclick="switchPanel('overview')">Overview</button></li>
             <li><button class="nav-btn" id="btn-schedule" onclick="switchPanel('schedule')">Class Schedule</button></li>
             <li><button class="nav-btn" id="btn-announcements" onclick="switchPanel('announcements')">Announcements</button></li>
+            <li><button class="nav-btn" id="btn-syllabus" onclick="switchPanel('syllabus')">Syllabus</button></li>
             <li><button class="nav-btn logout-btn" onclick="logout()">Logout</button></li>
         </ul>
     </div>
@@ -67,7 +68,9 @@
                     </div>
                     <div class="stat-val" id="statFees">--</div>
                     <div class="stat-label">Outstanding Fees</div>
-                    <div class="stat-sub">Next Due: N/A</div>
+                    <div class="stat-sub" id="payFeesContainer">
+                        <button class="action-btn-mini edit-btn" style="background: rgba(236, 72, 153, 0.2); color: #f472b6; border: none; padding: 4px 10px; border-radius: 6px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-size: 11px; margin-top: 5px; display: none;" id="payOnlineBtn" onclick="openPaymentModal()">Pay Online</button>
+                    </div>
                 </div>
             </div>
 
@@ -151,6 +154,86 @@
             <div class="announcements-grid" id="announcementsContainer">
                 <div class="loading-spinner">Loading announcements...</div>
             </div>
+        </div>
+
+        <!-- Syllabus Panel -->
+        <div id="syllabusPanel" class="content-panel">
+            <div class="panel-header">
+                <h1 class="panel-title">Child's Syllabus</h1>
+                <p class="panel-desc">Download syllabus PDFs and track weekly progress for your child's subjects.</p>
+            </div>
+
+            <div class="card">
+                <div class="board-tabs" style="display: flex; gap: 15px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                    <button class="board-tab active" id="btn-board-CBSE" onclick="switchBoard('CBSE')">CBSE Board</button>
+                    <button class="board-tab" id="btn-board-UP" onclick="switchBoard('UP')">UP Board</button>
+                    <button class="board-tab" id="btn-board-ICSE" onclick="switchBoard('ICSE')">ICSE Board</button>
+                </div>
+                <div id="syllabusSubjectsList" class="subjects-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px;">
+                    <div class="loading-spinner">Loading syllabus directory...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Syllabus Progress Modal -->
+    <div id="progressModal" class="modal-overlay" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(8, 9, 13, 0.8); backdrop-filter: blur(12px); align-items: center; justify-content: center;">
+        <div class="modal-card" style="background: rgba(22, 26, 39, 0.95); border: 1px solid var(--border-color); border-radius: 20px; width: 90%; max-width: 550px; padding: 25px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px;">
+                <h3 class="modal-title" id="progressModalTitle" style="font-size: 20px; font-weight: 700; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Weekly Progress</h3>
+                <button type="button" class="modal-close-btn" onclick="closeProgressModal()" style="background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer; transition: color 0.2s;">&times;</button>
+            </div>
+            <div id="progressModalBody" style="max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; padding-right: 5px;">
+                <!-- Loaded Dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Online Card Payment Modal -->
+    <div id="paymentModal" class="modal-overlay" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(8, 9, 13, 0.8); backdrop-filter: blur(12px); align-items: center; justify-content: center;">
+        <div class="modal-card" style="background: rgba(22, 26, 39, 0.95); border: 1px solid var(--border-color); border-radius: 20px; width: 90%; max-width: 500px; padding: 25px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px;">
+                <h3 class="modal-title" style="font-size: 20px; font-weight: 700; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Online Fee Payment Gateway</h3>
+                <button type="button" class="modal-close-btn" onclick="closePaymentModal()" style="background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer; transition: color 0.2s;">&times;</button>
+            </div>
+            
+            <form id="cardPaymentForm" style="display: flex; flex-direction: column; gap: 15px;">
+                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: var(--text-secondary);">Total Outstanding:</span>
+                    <span id="paymentOutstandingText" style="font-size: 18px; font-weight: 800; color: var(--std-fees);">₹0</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);" for="paymentAmount">Payment Amount (₹)</label>
+                    <input type="number" id="paymentAmount" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; color: var(--text-primary); outline: none; font-size: 15px;" min="1" required>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);" for="cardName">Cardholder Name</label>
+                    <input type="text" id="cardName" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; color: var(--text-primary); outline: none; font-size: 15px;" placeholder="John Doe" required>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);" for="cardNumber">Card Number</label>
+                    <input type="text" id="cardNumber" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; color: var(--text-primary); outline: none; font-size: 15px;" placeholder="4111 2222 3333 4444" pattern="^[0-9 ]{13,19}$" required>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);" for="cardExpiry">Expiry (MM/YY)</label>
+                        <input type="text" id="cardExpiry" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; color: var(--text-primary); outline: none; font-size: 15px;" placeholder="12/28" pattern="^(0[1-9]|1[0-2])\/[0-9]{2}$" required>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);" for="cardCvv">CVV</label>
+                        <input type="password" id="cardCvv" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; color: var(--text-primary); outline: none; font-size: 15px;" placeholder="***" pattern="^[0-9]{3,4}$" required>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                    <button type="button" onclick="closePaymentModal()" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 20px; color: var(--text-primary); cursor: pointer; font-weight: 600; transition: background 0.2s;">Cancel</button>
+                    <button type="submit" id="paySubmitBtn" style="background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border: none; border-radius: 10px; padding: 10px 25px; color: white; cursor: pointer; font-weight: 700; transition: opacity 0.2s;">Complete Transaction</button>
+                </div>
+            </form>
         </div>
     </div>
 

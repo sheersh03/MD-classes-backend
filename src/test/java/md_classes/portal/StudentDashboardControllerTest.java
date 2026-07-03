@@ -146,4 +146,50 @@ class StudentDashboardControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
+
+    @Test
+    void testSyllabusProgressTracker() throws Exception {
+        // Register an Admin
+        String adminRegister = """
+                {"name":"Admin SyllabusTest","email":"admin-syllabus-test@md.test","password":"password123","role":"ADMIN"}
+                """;
+        mvc.perform(post("/apiv1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON).content(adminRegister))
+                .andExpect(status().isCreated());
+
+        // Login Admin
+        MvcResult adminLoginResult = mvc.perform(post("/apiv1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"admin-syllabus-test@md.test","password":"password123"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String adminToken = json.readTree(adminLoginResult.getResponse().getContentAsString())
+                .get("accessToken").asText();
+
+        // 1. PUT request with syllabus progress payload
+        String payload = """
+                {
+                    "studentClass": "Class 10",
+                    "subject": "Maths",
+                    "weekNumber": 1,
+                    "topicsCovered": "Real Numbers, Polynomials",
+                    "percentCompleted": 80,
+                    "isMilestone": false
+                }
+                """;
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/apiv1/syllabus-progress")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.studentClass").value("Class 10"))
+                .andExpect(jsonPath("$.subject").value("Maths"))
+                .andExpect(jsonPath("$.weekNumber").value(1))
+                .andExpect(jsonPath("$.percentCompleted").value(80))
+                .andExpect(jsonPath("$.isMilestone").value(false));
+    }
 }

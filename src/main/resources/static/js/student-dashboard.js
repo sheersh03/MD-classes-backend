@@ -1,5 +1,6 @@
 const token = localStorage.getItem('accessToken');
 const userJson = localStorage.getItem('user');
+let studentId = 0;
 
 if (!token || !userJson) {
     logout();
@@ -81,11 +82,19 @@ async function loadDashboardData() {
         console.log("<<< [API RESPONSE SUCCESS PAYLOAD]:", data);
 
         // Update Stats
+        studentId = data.studentDetails.id || 0;
         document.getElementById('statCourse').textContent = data.studentDetails.course;
         document.getElementById('statBatch').textContent = 'Batch: ' + data.studentDetails.batchId;
         document.getElementById('statAttendance').textContent = data.attendance;
         document.getElementById('statGpa').textContent = data.gpa;
         document.getElementById('statFees').textContent = data.pendingFees;
+
+        const payBtn = document.getElementById('payOnlineBtn');
+        if (data.pendingFees !== 'Nil' && payBtn) {
+            payBtn.style.display = 'inline-block';
+        } else if (payBtn) {
+            payBtn.style.display = 'none';
+        }
         document.getElementById('profilePhone').textContent = data.studentDetails.phone || 'N/A';
 
         // Render Class and Subjects
@@ -145,6 +154,77 @@ async function loadDashboardData() {
     }
 }
 
+async function showSyllabusProgress(subject) {
+    const modal = document.getElementById('progressModal');
+    const title = document.getElementById('progressModalTitle');
+    const body = document.getElementById('progressModalBody');
+
+    title.textContent = `${subject} - Weekly Syllabus Progress`;
+    body.innerHTML = '<div class="loading-spinner">Loading progress timeline...</div>';
+    modal.style.display = 'flex';
+
+    try {
+        console.log(`>>> [API REQUEST] GET /apiv1/syllabus-progress?subject=${encodeURIComponent(subject)}`);
+        const response = await fetch(`/apiv1/syllabus-progress?subject=${encodeURIComponent(subject)}`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to retrieve weekly progress details');
+        }
+
+        const data = await response.json();
+        console.log("<<< [API RESPONSE SUCCESS PAYLOAD]:", data);
+
+        if (data.length === 0) {
+            body.innerHTML = `
+                <div style="text-align: center; padding: 30px; color: var(--text-secondary);">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--text-secondary); margin-bottom: 15px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <p style="font-size: 15px; font-weight: 500;">No weekly syllabus progress has been uploaded by the admin for this subject yet.</p>
+                </div>
+            `;
+            return;
+        }
+
+        body.innerHTML = data.map(p => {
+            const milestoneBadge = p.isMilestone ? 
+                '<span style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; padding: 4px 10px; border-radius: 20px; font-weight: 700; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(245, 158, 11, 0.2);">🏆 Milestone Reached</span>' : 
+                '';
+
+            return `
+                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 14px; padding: 15px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 700; font-size: 15px; color: var(--text-primary);">Week ${p.weekNumber}</span>
+                        ${milestoneBadge}
+                    </div>
+                    <div style="font-size: 14px; color: var(--text-secondary); line-height: 1.5;">
+                        <strong>Topics:</strong> ${p.topicsCovered || 'Not Specified'}
+                    </div>
+                    <div style="margin-top: 5px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">
+                            <span>Completion progress</span>
+                            <span style="font-weight: 700; color: var(--role-student);">${p.percentCompleted}%</span>
+                        </div>
+                        <div style="background: rgba(255, 255, 255, 0.05); border-radius: 10px; height: 6px; width: 100%;">
+                            <div style="background: #10b981; width: ${p.percentCompleted}%; height: 100%; border-radius: 10px;"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        body.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: #ef4444;">
+                <p>Error: ${err.message}</p>
+            </div>
+        `;
+    }
+}
+
+function closeProgressModal() {
+    document.getElementById('progressModal').style.display = 'none';
+}
+
 function logout() {
     localStorage.clear();
     window.location.href = '/login';
@@ -195,9 +275,15 @@ function renderSyllabusDirectory() {
         const normalizedSubject = subject.toLowerCase().replace(/\s+/g, '_');
         
         let downloadUrl = `/syllabus/syllabus_placeholder.pdf?board=${activeBoard}&subject=${encodeURIComponent(subject)}`;
-        if (normalizedBoard === 'cbse' && (normalizedClass === '9' || normalizedClass === 'class 9' || normalizedClass === 'class9')) {
-            downloadUrl = `/syllabus/cbse_9_${normalizedSubject}.pdf`;
+        if (normalizedBoard === 'cbse') {
+            if (normalizedClass === '9' || normalizedClass === 'class 9' || normalizedClass === 'class9') {
+                downloadUrl = `/syllabus/cbse_9_${normalizedSubject}.pdf`;
+            } else if (normalizedClass === '10' || normalizedClass === 'class 10' || normalizedClass === 'class10') {
+                downloadUrl = `/syllabus/cbse_10_${normalizedSubject}.pdf`;
+            }
         }
+        
+        const classClean = normalizedClass ? `Class_${normalizedClass.toUpperCase()}` : 'Syllabus';
         
         return `
             <div class="subject-syllabus-card">
@@ -213,13 +299,90 @@ function renderSyllabusDirectory() {
                     <div class="subject-syllabus-title">${subject}</div>
                     <div class="subject-syllabus-meta">Syllabus curriculum for grade study</div>
                 </div>
-                <a href="${downloadUrl}" download="${activeBoard}_Class_9_${subject}_Syllabus.pdf" class="download-syllabus-btn">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download PDF
-                </a>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <a href="${downloadUrl}" download="${activeBoard}_${classClean}_${subject}_Syllabus.pdf" class="download-syllabus-btn" style="flex: 1; margin: 0; justify-content: center; font-size: 13px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        PDF
+                    </a>
+                    <button onclick="showSyllabusProgress('${subject}')" class="download-syllabus-btn" style="flex: 1; margin: 0; justify-content: center; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.2); color: #a78bfa; font-size: 13px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 4px;"><path d="M12 20h9M3 20v-8c0-2.2 1.8-4 4-4h10c2.2 0 4 1.8 4 4v8M3 12h18M3 8V5c0-1.1.9-2 2-2h14c1.1 0 2 .9 2 2v3"/></svg>
+                        Progress
+                    </button>
+                </div>
             </div>
         `;
     }).join('');
 }
 
 loadDashboardData();
+
+// Payment Modal Helpers
+let currentOutstandingVal = 0;
+
+function openPaymentModal() {
+    const feeStr = document.getElementById('statFees').textContent;
+    const numericVal = parseInt(feeStr.replace(/[^\d]/g, '')) || 0;
+    currentOutstandingVal = numericVal;
+
+    document.getElementById('paymentOutstandingText').textContent = feeStr;
+    document.getElementById('paymentAmount').value = numericVal;
+    document.getElementById('paymentAmount').max = numericVal;
+
+    document.getElementById('cardName').value = '';
+    document.getElementById('cardNumber').value = '';
+    document.getElementById('cardExpiry').value = '';
+    document.getElementById('cardCvv').value = '';
+
+    document.getElementById('paymentModal').style.display = 'flex';
+}
+
+function closePaymentModal() {
+    document.getElementById('paymentModal').style.display = 'none';
+}
+
+setTimeout(() => {
+    const paymentForm = document.getElementById('cardPaymentForm');
+    if (paymentForm) {
+        paymentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const amount = parseInt(document.getElementById('paymentAmount').value);
+            if (amount <= 0 || amount > currentOutstandingVal) {
+                showToast('Invalid payment amount requested', false);
+                return;
+            }
+
+            const submitBtn = document.getElementById('paySubmitBtn');
+            submitBtn.textContent = 'Processing Payment...';
+            submitBtn.disabled = true;
+
+            try {
+                console.log(">>> [API REQUEST] POST /apiv1/fees/pay");
+                const response = await fetch('/apiv1/fees/pay', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({ amount })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.message || 'Payment processing failed');
+                }
+
+                const txData = await response.json();
+                console.log("<<< [API RESPONSE SUCCESS PAYLOAD]:", txData);
+
+                showToast(`Payment of ₹${amount} successful! Ref: ${txData.transactionReference}`, true);
+                closePaymentModal();
+                loadDashboardData();
+            } catch (err) {
+                showToast(err.message, false);
+            } finally {
+                submitBtn.textContent = 'Complete Transaction';
+                submitBtn.disabled = false;
+            }
+        });
+    }
+}, 500);

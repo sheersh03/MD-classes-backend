@@ -21,8 +21,10 @@
         </div>
 
         <ul class="nav-links">
-            <li><button class="nav-btn active" onclick="switchPanel('overview')">Overview</button></li>
+            <li><button class="nav-btn active" id="overviewNavBtn" onclick="switchPanel('overview')">Overview</button></li>
             <li><button class="nav-btn" id="studentsNavBtn" onclick="switchPanel('students')">Students Directory</button></li>
+            <li><button class="nav-btn" id="syllabusNavBtn" onclick="switchPanel('syllabus-progress')">Syllabus Tracker</button></li>
+            <li><button class="nav-btn" id="feesNavBtn" onclick="switchPanel('fees-tracker')">Fees Tracker</button></li>
             <li><button class="nav-btn logout-btn" onclick="logout()">Logout</button></li>
         </ul>
     </div>
@@ -139,6 +141,156 @@
                 </div>
             </div>
         </div>
+
+        <div id="syllabusProgressPanel" class="content-panel">
+            <div class="panel-header">
+                <h1 class="panel-title">Syllabus Tracker</h1>
+                <p class="panel-desc">Manage weekly syllabus completion progress and milestones.</p>
+            </div>
+            
+            <div class="card">
+                <h2 style="font-size: 20px; margin-bottom: 20px; font-weight: 600;">Update Weekly Progress</h2>
+                <form id="updateSyllabusForm" style="display: flex; flex-direction: column; gap: 15px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label class="form-label" for="progClass">Student Class</label>
+                            <select id="progClass" class="form-input" required>
+                                <option value="">Select Class</option>
+                                <option value="Class 9">Class 9</option>
+                                <option value="Class 10">Class 10</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="progSubject">Subject</label>
+                            <select id="progSubject" class="form-input" required>
+                                <option value="">Select Subject</option>
+                                <option value="Maths">Maths</option>
+                                <option value="Science">Science</option>
+                                <option value="Social Science">Social Science</option>
+                                <option value="Hindi">Hindi</option>
+                                <option value="English">English</option>
+                                <option value="Computer">Computer</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; align-items: end;">
+                        <div class="form-group">
+                            <label class="form-label" for="progWeek">Week Number</label>
+                            <input type="number" id="progWeek" class="form-input" min="1" max="52" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="progPercent">Percent Completed (%)</label>
+                            <input type="number" id="progPercent" class="form-input" min="0" max="100" required>
+                        </div>
+                        <div class="form-group" style="display: flex; align-items: center; gap: 10px; padding-bottom: 12px;">
+                            <input type="checkbox" id="progMilestone" style="width: 20px; height: 20px; cursor: pointer;">
+                            <label for="progMilestone" class="form-label" style="margin-bottom: 0; cursor: pointer; user-select: none;">Milestone Flag</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="progTopics">Topics Covered</label>
+                        <input type="text" id="progTopics" class="form-input" placeholder="e.g. Quadratic Equations, APs" required autocomplete="off">
+                    </div>
+
+                    <button type="submit" class="action-btn" style="width: fit-content; padding: 12px 24px; align-self: flex-start; margin-top: 10px;">
+                        Save Progress
+                    </button>
+                </form>
+            </div>
+
+            <div class="card" style="margin-top: 25px;">
+                <h2 style="font-size: 20px; margin-bottom: 15px; font-weight: 600;">Syllabus Status Directory</h2>
+                <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                    <select id="filterClass" class="form-input" style="max-width: 200px;" onchange="loadProgressList()">
+                        <option value="Class 10">Class 10</option>
+                        <option value="Class 9">Class 9</option>
+                    </select>
+                    <select id="filterSubject" class="form-input" style="max-width: 200px;" onchange="loadProgressList()">
+                        <option value="Maths">Maths</option>
+                        <option value="Science">Science</option>
+                        <option value="Social Science">Social Science</option>
+                        <option value="Hindi">Hindi</option>
+                        <option value="English">English</option>
+                        <option value="Computer">Computer</option>
+                    </select>
+                </div>
+                
+                <div class="table-container" style="overflow-x: auto;">
+                    <table class="student-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 14px;">
+                                <th style="padding: 12px 16px;">Week</th>
+                                <th style="padding: 12px 16px;">Topics Covered</th>
+                                <th style="padding: 12px 16px;">Completion</th>
+                                <th style="padding: 12px 16px;">Milestone Status</th>
+                                <th style="padding: 12px 16px;">Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody id="progressListTableBody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; color: var(--text-secondary); padding: 20px;">Select filters or click search to view progress.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="feesTrackerPanel" class="content-panel">
+            <div class="panel-header">
+                <h1 class="panel-title">Fees Tracker</h1>
+                <p class="panel-desc">Monitor student fee status, record payments, and track outstanding balances.</p>
+            </div>
+            
+            <div class="card">
+                <h2 style="font-size: 20px; margin-bottom: 20px; font-weight: 600;">Fees Outstanding Directory</h2>
+                <div class="table-container" style="overflow-x: auto;">
+                    <table class="student-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 14px;">
+                                <th style="padding: 12px 16px;">ID</th>
+                                <th style="padding: 12px 16px;">Student Name</th>
+                                <th style="padding: 12px 16px;">Total Fee</th>
+                                <th style="padding: 12px 16px;">Paid Amount</th>
+                                <th style="padding: 12px 16px;">Pending Balance</th>
+                                <th style="padding: 12px 16px;">Status</th>
+                                <th style="padding: 12px 16px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="feesTableBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 20px;">Loading fee records...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 25px;">
+                <h2 style="font-size: 20px; margin-bottom: 20px; font-weight: 600;">Transaction History Ledger</h2>
+                <div class="table-container" style="overflow-x: auto;">
+                    <table class="student-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 14px;">
+                                <th style="padding: 12px 16px;">TXN ID</th>
+                                <th style="padding: 12px 16px;">Student Name</th>
+                                <th style="padding: 12px 16px;">Amount Paid</th>
+                                <th style="padding: 12px 16px;">Payment Method</th>
+                                <th style="padding: 12px 16px;">Transaction Reference</th>
+                                <th style="padding: 12px 16px;">Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="txnTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 20px;">Loading transactions...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Edit Student Modal -->
@@ -191,6 +343,50 @@
                 <div class="modal-footer">
                     <button type="button" class="secondary-btn" onclick="closeEditModal()">Cancel</button>
                     <button type="submit" class="submit-btn" style="margin: 0; padding: 12px 24px;">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Manage Student Fees Modal -->
+    <div id="manageFeesModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title">Manage Student Fees</h3>
+                <button type="button" class="modal-close-btn" onclick="closeFeeModal()">&times;</button>
+            </div>
+            <form id="manageFeesForm">
+                <input type="hidden" id="feeStdId">
+                <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div class="form-group">
+                        <label class="form-label">Student Name</label>
+                        <input type="text" id="feeStdName" class="form-input" disabled style="opacity: 0.8; cursor: not-allowed;">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" id="feeStdEmail" class="form-input" disabled style="opacity: 0.8; cursor: not-allowed;">
+                    </div>
+                </div>
+                
+                <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div class="form-group">
+                        <label class="form-label" for="feeTotal">Total Assigned Fee (₹)</label>
+                        <input type="number" id="feeTotal" class="form-input" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="feePaid">Total Paid Amount (₹)</label>
+                        <input type="number" id="feePaid" class="form-input" min="0" required>
+                    </div>
+                </div>
+                
+                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); padding: 15px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 600; color: var(--text-secondary);">Remaining Balance:</span>
+                    <span id="feeRemainingText" style="font-size: 20px; font-weight: 800; color: var(--accent-secondary);">₹0</span>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="secondary-btn" onclick="closeFeeModal()">Cancel</button>
+                    <button type="submit" class="submit-btn" style="margin: 0; padding: 12px 24px; background: var(--role-parent);">Save Fees</button>
                 </div>
             </form>
         </div>

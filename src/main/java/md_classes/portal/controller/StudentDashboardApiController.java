@@ -27,10 +27,12 @@ public class StudentDashboardApiController {
 
     private final AuthService authService;
     private final StudentRepository studentRepository;
+    private final md_classes.portal.repository.StudentFeeRepository studentFeeRepository;
 
-    public StudentDashboardApiController(AuthService authService, StudentRepository studentRepository) {
+    public StudentDashboardApiController(AuthService authService, StudentRepository studentRepository, md_classes.portal.repository.StudentFeeRepository studentFeeRepository) {
         this.authService = authService;
         this.studentRepository = studentRepository;
+        this.studentFeeRepository = studentFeeRepository;
     }
 
     @PostMapping("/login")
@@ -45,7 +47,7 @@ public class StudentDashboardApiController {
 
     @GetMapping("/overview")
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('STUDENT') or hasAuthority('ROLE_STUDENT')")
-    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<Map<String, Object>> getOverview() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null) {
@@ -88,6 +90,7 @@ public class StudentDashboardApiController {
         }
 
         Map<String, Object> studentDetails = new java.util.HashMap<>();
+        studentDetails.put("id", studentOpt.map(Student::getId).orElse(0L));
         studentDetails.put("course", course != null ? course : "Not Assigned");
         studentDetails.put("batchId", batchId != null ? batchId : "Not Assigned");
         studentDetails.put("phone", phone != null ? phone : "Not Assigned");
@@ -108,11 +111,20 @@ public class StudentDashboardApiController {
                 Map.of("date", "3 days ago", "title", "Guest Lecture: System Design at Google", "content", "Join us this Saturday at 5:00 PM for an interactive webinar on scaling applications with a Staff Engineer from Google.", "type", "event")
         );
 
+        java.util.Optional<md_classes.portal.domain.StudentFee> feeOpt = studentFeeRepository.findByStudentUserId(userId);
+        if (feeOpt.isEmpty() && studentOpt.isPresent()) {
+            md_classes.portal.domain.StudentFee newFee = new md_classes.portal.domain.StudentFee(studentOpt.get(), 10000, 0);
+            studentFeeRepository.save(newFee);
+            feeOpt = java.util.Optional.of(newFee);
+        }
+        int remainingFee = feeOpt.map(md_classes.portal.domain.StudentFee::getRemainingFee).orElse(0);
+        String pendingFees = remainingFee > 0 ? "₹" + remainingFee : "Nil";
+
         Map<String, Object> data = new java.util.HashMap<>();
         data.put("studentDetails", studentDetails);
         data.put("gpa", "3.85");
         data.put("attendance", "94.2%");
-        data.put("pendingFees", "Nil");
+        data.put("pendingFees", pendingFees);
         data.put("assignmentsCount", "2 Pending");
         data.put("upcomingClasses", upcomingClasses);
         data.put("announcements", announcements);
