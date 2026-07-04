@@ -47,7 +47,7 @@ function renderSyllabusDirectory() {
     if (!container) return;
     
     if (activeSubjectsList.length === 0) {
-        container.innerHTML = '<div class="loading-spinner" style="grid-column: 1/-1; padding: 20px;">No subjects found for syllabus download. Ensure child\'s class is registered.</div>';
+        container.innerHTML = '<div class="loading-spinner" style="grid-column: 1/-1; padding: 20px;">No subjects found. Ensure child\'s class is registered.</div>';
         return;
     }
     
@@ -66,21 +66,6 @@ function renderSyllabusDirectory() {
             iconSvg = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #ec4899;"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`;
         }
         
-        const normalizedBoard = activeBoard.toLowerCase();
-        const normalizedClass = (currentStudentClass || '').toLowerCase().replace(/class\s*/g, '').trim();
-        const normalizedSubject = subject.toLowerCase().replace(/\s+/g, '_');
-        
-        let downloadUrl = `/syllabus/syllabus_placeholder.pdf?board=${activeBoard}&subject=${encodeURIComponent(subject)}`;
-        if (normalizedBoard === 'cbse') {
-            if (normalizedClass === '9' || normalizedClass === 'class 9' || normalizedClass === 'class9') {
-                downloadUrl = `/syllabus/cbse_9_${normalizedSubject}.pdf`;
-            } else if (normalizedClass === '10' || normalizedClass === 'class 10' || normalizedClass === 'class10') {
-                downloadUrl = `/syllabus/cbse_10_${normalizedSubject}.pdf`;
-            }
-        }
-        
-        const classClean = normalizedClass ? `Class_${normalizedClass.toUpperCase()}` : 'Syllabus';
-        
         return `
             <div class="subject-syllabus-card">
                 <div>
@@ -96,10 +81,6 @@ function renderSyllabusDirectory() {
                     <div class="subject-syllabus-meta">Syllabus curriculum for grade study</div>
                 </div>
                 <div style="display: flex; gap: 10px; margin-top: 15px;">
-                    <a href="${downloadUrl}" download="${activeBoard}_${classClean}_${subject}_Syllabus.pdf" class="download-syllabus-btn" style="flex: 1; margin: 0; justify-content: center; font-size: 13px;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        PDF
-                    </a>
                     <button onclick="showSyllabusProgress('${subject}')" class="download-syllabus-btn" style="flex: 1; margin: 0; justify-content: center; background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.2); color: #a78bfa; font-size: 13px;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 4px;"><path d="M12 20h9M3 20v-8c0-2.2 1.8-4 4-4h10c2.2 0 4 1.8 4 4v8M3 12h18M3 8V5c0-1.1.9-2 2-2h14c1.1 0 2 .9 2 2v3"/></svg>
                         Progress
