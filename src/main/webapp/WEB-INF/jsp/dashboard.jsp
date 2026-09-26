@@ -209,14 +209,37 @@
 
             <!-- Curriculum Hierarchy: Subject -> Unit -> Topic -->
             <div class="card" style="margin-top: 25px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
                     <div>
                         <h2 style="font-size: 20px; font-weight: 600;">Curriculum Management</h2>
-                        <p style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">Manage Subjects, Units, and Topics in the database.</p>
+                        <p style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">Track syllabus status for each unit, update topic milestones, and manage Subjects, Units, and Topics.</p>
                     </div>
-                    <button type="button" class="action-btn" onclick="openAddSubjectModal()" style="font-size: 13px; padding: 10px 18px;">
-                        + Add Subject
-                    </button>
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 6px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-color); border-radius: 8px; padding: 2px 8px;">
+                            <span style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">Class:</span>
+                            <select id="curriculumClassSelect" class="form-input" style="width: auto; padding: 4px 8px; font-size: 12px; border: none; background: transparent;" onchange="onCurriculumClassChanged()">
+                                <option value="Class 10">Class 10</option>
+                                <option value="Class 9">Class 9</option>
+                            </select>
+                        </div>
+                        <button type="button" class="action-btn" onclick="openAddSubjectModal()" style="font-size: 13px; padding: 8px 16px;">
+                            + Add Subject
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Curriculum Syllabus Summary Banner -->
+                <div id="curriculumSummaryBanner" class="curriculum-summary-banner">
+                    <!-- Populated dynamically by loadCurriculum() -->
+                </div>
+
+                <!-- Quick Unit Status Filters -->
+                <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;">
+                    <span style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">Filter Units:</span>
+                    <button type="button" class="curriculum-filter-btn active" id="filterUnitAll" onclick="setCurriculumUnitFilter('ALL')">All Units</button>
+                    <button type="button" class="curriculum-filter-btn" id="filterUnitInProgress" onclick="setCurriculumUnitFilter('IN_PROGRESS')">⏳ In Progress</button>
+                    <button type="button" class="curriculum-filter-btn" id="filterUnitCompleted" onclick="setCurriculumUnitFilter('COMPLETED')">✓ Completed</button>
+                    <button type="button" class="curriculum-filter-btn" id="filterUnitNotStarted" onclick="setCurriculumUnitFilter('NOT_STARTED')">○ Not Started</button>
                 </div>
 
                 <div id="curriculumTreeView" style="display: flex; flex-direction: column; gap: 15px;">

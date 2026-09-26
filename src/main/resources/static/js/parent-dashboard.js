@@ -32,17 +32,73 @@ let activeSubjectsList = [];
 let currentStudentClass = '';
 let cachedCurriculum = [];
 let cachedProgressList = [];
+let cachedTopicProgress = []; // List of child's StudentTopicProgress records
 let activeModalSubject = '';
 let activeModalTab = 'curriculum';
 
+function getTopicProgress(topicId) {
+    if (!topicId) return null;
+    return cachedTopicProgress.find(p => p.topicId === topicId || (p.topic && p.topic.topicId === topicId)) || null;
+}
+
+function calculateUnitStats(unit, coveredTopicsMap) {
+    const topics = unit && unit.topics ? unit.topics : [];
+    if (topics.length === 0) {
+        return { pct: 0, completedCount: 0, totalCount: 0 };
+    }
+    let totalPct = 0;
+    let completedCount = 0;
+
+    topics.forEach(t => {
+        const prog = getTopicProgress(t.topicId);
+        if (prog) {
+            const pVal = prog.progressPercentage != null ? prog.progressPercentage : (prog.completed ? 100 : 0);
+            totalPct += pVal;
+            if (pVal >= 100 || prog.status === 'Completed') {
+                completedCount++;
+            }
+        } else if (coveredTopicsMap && coveredTopicsMap.has(t.topicName.toLowerCase())) {
+            totalPct += 100;
+            completedCount++;
+        }
+    });
+
+    const pct = Math.round(totalPct / topics.length);
+    return { pct, completedCount, totalCount: topics.length };
+}
+
+function calculateSubjectActualPct(curriculum, coveredTopicsMap) {
+    if (!curriculum || !curriculum.units || curriculum.units.length === 0) return 0;
+    let totalTopics = 0;
+    let totalProgressSum = 0;
+
+    curriculum.units.forEach(u => {
+        const uTopics = u.topics || [];
+        totalTopics += uTopics.length;
+        uTopics.forEach(t => {
+            const prog = getTopicProgress(t.topicId);
+            if (prog) {
+                totalProgressSum += prog.progressPercentage != null ? prog.progressPercentage : (prog.completed ? 100 : 0);
+            } else if (coveredTopicsMap && coveredTopicsMap.has(t.topicName.toLowerCase())) {
+                totalProgressSum += 100;
+            }
+        });
+    });
+
+    return totalTopics > 0 ? Math.round(totalProgressSum / totalTopics) : 0;
+}
+
 async function loadCurriculumAndProgress() {
     try {
-        console.log(">>> [API REQUEST] Loading Child's Curriculum and Progress");
-        const [subRes, progRes] = await Promise.allSettled([
+        console.log(">>> [API REQUEST] Loading Child's Curriculum, Progress, and Topic Progress");
+        const [subRes, progRes, topicProgRes] = await Promise.allSettled([
             fetch('/apiv1/subjects', {
                 headers: { 'Authorization': 'Bearer ' + token }
             }),
             fetch('/apiv1/syllabus-progress', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            }),
+            fetch('/apiv1/student-topic-progress', {
                 headers: { 'Authorization': 'Bearer ' + token }
             })
         ]);
@@ -59,6 +115,13 @@ async function loadCurriculumAndProgress() {
             console.log("<<< [API PROGRESS RECEIVED]:", cachedProgressList);
         } else {
             console.warn("Could not retrieve progress records", progRes);
+        }
+
+        if (topicProgRes.status === 'fulfilled' && topicProgRes.value.ok) {
+            cachedTopicProgress = await topicProgRes.value.json();
+            console.log("<<< [API CHILD TOPIC PROGRESS RECEIVED]:", cachedTopicProgress);
+        } else {
+            console.warn("Could not retrieve child topic progress records", topicProgRes);
         }
 
         // Calculate Overview Banner Metrics
@@ -163,14 +226,6 @@ function renderSyllabusDirectory() {
         const subProgress = cachedProgressList.filter(p => p.subject && p.subject.toLowerCase() === subject.toLowerCase());
         const hasMilestone = subProgress.some(p => p.isMilestone);
         
-        let completionPct = 0;
-        let lastWeekNum = 0;
-        if (subProgress.length > 0) {
-            const latest = subProgress[subProgress.length - 1];
-            completionPct = latest.percentCompleted || 0;
-            lastWeekNum = latest.weekNumber || 0;
-        }
-
         // Extract covered topics from weekly progress records
         const coveredTopicsMap = new Map();
         subProgress.forEach(p => {
@@ -181,26 +236,72 @@ function renderSyllabusDirectory() {
             }
         });
 
-        // Build inline units and topics HTML
+        let completionPct = calculateSubjectActualPct(cur, coveredTopicsMap);
+        let lastWeekNum = 0;
+        if (subProgress.length > 0) {
+            const latest = subProgress[subProgress.length - 1];
+            if (completionPct === 0 && latest.percentCompleted) {
+                completionPct = latest.percentCompleted;
+            }
+            lastWeekNum = latest.weekNumber || 0;
+        }
+
+        // Build inline units and topics HTML with thin cylindrical fluid progress line
         let unitsDrawerHtml = '';
         if (unitsCount > 0) {
             const unitsListHtml = units.map(u => {
                 const uTopics = u.topics || [];
+                const unitStats = calculateUnitStats(u, coveredTopicsMap);
+
                 const topicsPills = uTopics.length > 0 ? uTopics.map(t => {
-                    const isCovered = coveredTopicsMap.has(t.topicName.toLowerCase());
-                    const weekCovered = coveredTopicsMap.get(t.topicName.toLowerCase());
-                    return isCovered ? 
-                        `<span class="topic-pill covered" title="Covered in Week ${weekCovered}">✓ ${t.topicName}</span>` :
-                        `<span class="topic-pill pending">⏳ ${t.topicName}</span>`;
+                    const prog = getTopicProgress(t.topicId);
+                    let isCovered = false;
+                    let isInProgress = false;
+                    let topicPct = 0;
+                    let weekCovered = null;
+
+                    if (prog) {
+                        topicPct = prog.progressPercentage != null ? prog.progressPercentage : (prog.completed ? 100 : 0);
+                        isCovered = topicPct >= 100 || prog.status === 'Completed';
+                        isInProgress = !isCovered && (topicPct > 0 || prog.status === 'In_Progress');
+                    } else if (coveredTopicsMap.has(t.topicName.toLowerCase())) {
+                        isCovered = true;
+                        topicPct = 100;
+                        weekCovered = coveredTopicsMap.get(t.topicName.toLowerCase());
+                    }
+
+                    const statusClass = isCovered ? 'completed' : (isInProgress ? 'in-progress' : 'pending');
+                    const statusIcon = isCovered ? '✓' : (isInProgress ? '⚡' : '⏳');
+                    const statusLabel = isCovered ? (weekCovered ? `Covered (Wk ${weekCovered})` : 'Completed') : (isInProgress ? `In Progress (${topicPct}%)` : 'Upcoming');
+
+                    return `
+                        <span class="topic-interactive-pill ${statusClass}" title="${statusLabel}">
+                            <span class="topic-check-icon">${statusIcon}</span>
+                            <span>${t.topicName}</span>
+                            ${topicPct > 0 ? `<span class="topic-pct-tag">${topicPct}%</span>` : ''}
+                        </span>
+                    `;
                 }).join('') : '<span style="color: var(--text-secondary); font-size: 11px; font-style: italic;">No topics yet</span>';
 
                 return `
                     <div class="card-unit-block">
                         <div class="card-unit-title">
-                            <span>📁 ${u.unitName}</span>
-                            <span style="font-size: 11px; color: var(--text-secondary);">${uTopics.length} topics</span>
+                            <span style="font-weight: 600; font-size: 13px; color: var(--text-primary);">📁 Unit: ${u.unitName}</span>
+                            <div class="unit-fluid-stats">
+                                <span class="unit-fluid-badge">
+                                    <span class="fluid-droplet">💧</span>
+                                    <strong>${unitStats.pct}%</strong>
+                                </span>
+                                <span class="unit-topics-count">${unitStats.completedCount} / ${unitStats.totalCount} Topics</span>
+                            </div>
                         </div>
-                        <div class="card-topics-wrap">
+
+                        <!-- Thin Cylindrical Line with Dynamic Liquid Fluid -->
+                        <div class="unit-cylinder-tube" title="Child's Unit Progress: ${unitStats.pct}%">
+                            <div class="unit-cylinder-fluid" style="width: ${unitStats.pct}%;"></div>
+                        </div>
+
+                        <div class="card-topics-wrap" style="margin-top: 6px;">
                             ${topicsPills}
                         </div>
                     </div>
@@ -245,7 +346,7 @@ function renderSyllabusDirectory() {
                             <span style="font-weight: 700; color: #f59e0b;">${completionPct}%</span>
                         </div>
                         <div style="background: rgba(255, 255, 255, 0.05); border-radius: 10px; height: 6px; width: 100%; overflow: hidden;">
-                            <div style="background: linear-gradient(90deg, #f59e0b, #ec4899); width: ${completionPct}%; height: 100%; border-radius: 10px; transition: width 0.3s ease;"></div>
+                            <div style="background: linear-gradient(90deg, #f59e0b, #ec4899); width: ${completionPct}%; height: 100%; border-radius: 10px; transition: width 0.4s ease;"></div>
                         </div>
                     </div>
 
@@ -529,33 +630,60 @@ function renderModalTabContent() {
 
         const unitsListHtml = cur.units.map(u => {
             const uTopics = u.topics || [];
-            let coveredInUnit = 0;
+            const unitStats = calculateUnitStats(u, coveredTopicsMap);
+
             const topicsHtml = uTopics.length > 0 ? uTopics.map(t => {
-                const isCovered = coveredTopicsMap.has(t.topicName.toLowerCase());
-                if (isCovered) coveredInUnit++;
-                const weekNum = coveredTopicsMap.get(t.topicName.toLowerCase());
+                const prog = getTopicProgress(t.topicId);
+                let isCovered = false;
+                let isInProgress = false;
+                let topicPct = 0;
+                let weekCovered = null;
+
+                if (prog) {
+                    topicPct = prog.progressPercentage != null ? prog.progressPercentage : (prog.completed ? 100 : 0);
+                    isCovered = topicPct >= 100 || prog.status === 'Completed';
+                    isInProgress = !isCovered && (topicPct > 0 || prog.status === 'In_Progress');
+                } else if (coveredTopicsMap.has(t.topicName.toLowerCase())) {
+                    isCovered = true;
+                    topicPct = 100;
+                    weekCovered = coveredTopicsMap.get(t.topicName.toLowerCase());
+                }
+
+                const statusClass = isCovered ? 'completed' : (isInProgress ? 'in-progress' : 'pending');
+                const statusIcon = isCovered ? '✓' : (isInProgress ? '⚡' : '⏳');
+                const statusLabel = isCovered ? (weekCovered ? `Covered (Week ${weekCovered})` : 'Completed') : (isInProgress ? `In Progress (${topicPct}%)` : 'Upcoming');
+
                 return `
                     <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 12px; font-size: 13px;">
                         <span style="color: var(--text-primary);">📖 ${t.topicName}</span>
-                        ${isCovered ? 
-                            `<span class="topic-pill covered">✓ Covered in Week ${weekNum}</span>` : 
-                            `<span class="topic-pill pending">⏳ Upcoming</span>`}
+                        <span class="topic-interactive-pill ${statusClass}" title="${statusLabel}">
+                            <span class="topic-check-icon">${statusIcon}</span>
+                            <span>${isCovered ? (weekCovered ? `Covered (Wk ${weekCovered})` : 'Completed') : (isInProgress ? 'In Progress' : 'Upcoming')}</span>
+                            ${topicPct > 0 ? `<span class="topic-pct-tag">${topicPct}%</span>` : ''}
+                        </span>
                     </div>
                 `;
             }).join('') : '<span style="color: var(--text-secondary); font-size: 12px; font-style: italic;">No topics defined under this unit.</span>';
 
-            const unitPct = uTopics.length > 0 ? Math.round((coveredInUnit / uTopics.length) * 100) : 0;
-
             return `
                 <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
                         <span style="font-weight: 700; font-size: 15px; color: var(--text-primary);">📁 Unit: ${u.unitName}</span>
-                        <span style="font-size: 12px; font-weight: 600; color: #f59e0b;">${coveredInUnit} / ${uTopics.length} Covered (${unitPct}%)</span>
+                        <div class="unit-fluid-stats">
+                            <span class="unit-fluid-badge">
+                                <span class="fluid-droplet">💧</span>
+                                <strong>${unitStats.pct}%</strong>
+                            </span>
+                            <span class="unit-topics-count">${unitStats.completedCount} / ${unitStats.totalCount} Covered</span>
+                        </div>
                     </div>
-                    <div style="background: rgba(255, 255, 255, 0.05); border-radius: 6px; height: 5px; width: 100%; margin-bottom: 10px; overflow: hidden;">
-                        <div style="background: #f59e0b; width: ${unitPct}%; height: 100%; border-radius: 6px;"></div>
+
+                    <!-- Thin Cylindrical Line with Dynamic Liquid Fluid inside Modal -->
+                    <div class="unit-cylinder-tube" title="Child's Unit Progress: ${unitStats.pct}%">
+                        <div class="unit-cylinder-fluid" style="width: ${unitStats.pct}%;"></div>
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 6px;">
+
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
                         ${topicsHtml}
                     </div>
                 </div>

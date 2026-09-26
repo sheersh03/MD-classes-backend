@@ -20,6 +20,7 @@ public class Student {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "student_id")
     private Long id;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
@@ -67,6 +68,7 @@ public class Student {
     }
 
     public Long getId() { return id; }
+    public Long getStudentId() { return id; }
     public User getUser() { return user; }
     public String getCourse() { return course; }
     public String getBatchId() { return batchId; }
