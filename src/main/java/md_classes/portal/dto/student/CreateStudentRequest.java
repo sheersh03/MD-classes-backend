@@ -6,11 +6,12 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record CreateStudentRequest(
-        @NotBlank @Size(max = 120) String name,
-        @NotBlank @Email @Size(max = 255) String email,
-        @NotBlank @Size(min = 8, max = 100) String password,
-        @Pattern(regexp = "^[+0-9 \\-]{7,20}$", message = "phone must be 7-20 chars of digits/space/+/-") String phone,
+        @NotBlank(message = "Name is required") @Size(max = 120, message = "Name cannot exceed 120 characters") String name,
+        @NotBlank(message = "Email is required") @Email(message = "Invalid email address format") @Size(max = 255) String email,
+        @NotBlank(message = "Password is required") @Size(min = 8, max = 100, message = "Password must be at least 8 characters") String password,
+        @Pattern(regexp = "^$|^[+0-9 \\-]{7,20}$", message = "Phone must be 7-20 characters of digits, spaces, + or -") String phone,
         @Size(max = 120) String course,
         @Size(max = 40) String batchId,
         @Size(max = 80) String studentClass
 ) {}
+

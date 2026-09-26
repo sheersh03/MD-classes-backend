@@ -10,5 +10,6 @@ import java.util.Optional;
 @Repository
 public interface SyllabusProgressRepository extends JpaRepository<SyllabusProgress, Long> {
     List<SyllabusProgress> findByStudentClassAndSubjectOrderByWeekNumberAsc(String studentClass, String subject);
+    List<SyllabusProgress> findByStudentClassOrderByWeekNumberAsc(String studentClass);
     Optional<SyllabusProgress> findByStudentClassAndSubjectAndWeekNumber(String studentClass, String subject, Integer weekNumber);
 }

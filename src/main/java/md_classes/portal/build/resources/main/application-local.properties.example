@@ -1,0 +1,9 @@
+# Copy to application-local.properties (gitignored) and fill in your local Postgres details.
+spring.datasource.url=${MD_DB_URL:jdbc:postgresql://localhost:5432/md_portal}
+spring.datasource.username=${MD_DB_USER:md_portal}
+spring.datasource.password=${MD_DB_PASSWORD:md_portal}
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# Helpful for dev: log SQL
+spring.jpa.show-sql=false
+logging.level.md_classes.portal=DEBUG

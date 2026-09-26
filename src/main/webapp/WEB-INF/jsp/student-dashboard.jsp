@@ -125,8 +125,40 @@
         <!-- Syllabus Panel -->
         <div id="syllabusPanel" class="content-panel">
             <div class="panel-header">
-                <h1 class="panel-title">Syllabus</h1>
-                <p class="panel-desc">Download syllabus PDFs for your board and class subjects.</p>
+                <h1 class="panel-title">Syllabus & Curriculum Tracker</h1>
+                <p class="panel-desc">Track subject units, chapter topics, weekly syllabus milestones, and download official board syllabi.</p>
+            </div>
+
+            <!-- Curriculum Quick Metrics -->
+            <div class="curriculum-stats-banner">
+                <div class="curriculum-stat-card">
+                    <div class="curriculum-stat-icon" style="background: rgba(99, 102, 241, 0.15); color: #818cf8;">📚</div>
+                    <div>
+                        <div class="curriculum-stat-val" id="statCurriculumSubjects">--</div>
+                        <div class="curriculum-stat-label">Subjects Enrolled</div>
+                    </div>
+                </div>
+                <div class="curriculum-stat-card">
+                    <div class="curriculum-stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">📁</div>
+                    <div>
+                        <div class="curriculum-stat-val" id="statCurriculumUnits">--</div>
+                        <div class="curriculum-stat-label">Units / Chapters</div>
+                    </div>
+                </div>
+                <div class="curriculum-stat-card">
+                    <div class="curriculum-stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">📖</div>
+                    <div>
+                        <div class="curriculum-stat-val" id="statCurriculumTopics">--</div>
+                        <div class="curriculum-stat-label">Topics Tracked</div>
+                    </div>
+                </div>
+                <div class="curriculum-stat-card">
+                    <div class="curriculum-stat-icon" style="background: rgba(236, 72, 153, 0.15); color: #f472b6;">🏆</div>
+                    <div>
+                        <div class="curriculum-stat-val" id="statCurriculumMilestones">--</div>
+                        <div class="curriculum-stat-label">Milestones Reached</div>
+                    </div>
+                </div>
             </div>
 
             <div class="card">
@@ -135,7 +167,7 @@
                     <button class="board-tab" id="btn-board-UP" onclick="switchBoard('UP')">UP Board</button>
                     <button class="board-tab" id="btn-board-ICSE" onclick="switchBoard('ICSE')">ICSE Board</button>
                 </div>
-                <div id="syllabusSubjectsList" class="subjects-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px;">
+                <div id="syllabusSubjectsList" class="subjects-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
                     <div class="loading-spinner">Loading syllabus directory...</div>
                 </div>
             </div>
@@ -170,12 +202,17 @@
 
     <!-- Syllabus Progress Modal -->
     <div id="progressModal" class="modal-overlay" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(8, 9, 13, 0.8); backdrop-filter: blur(12px); align-items: center; justify-content: center;">
-        <div class="modal-card" style="background: rgba(22, 26, 39, 0.95); border: 1px solid var(--border-color); border-radius: 20px; width: 90%; max-width: 550px; padding: 25px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);">
-            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px;">
-                <h3 class="modal-title" id="progressModalTitle" style="font-size: 20px; font-weight: 700; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Weekly Progress</h3>
+        <div class="modal-card" style="background: rgba(22, 26, 39, 0.95); border: 1px solid var(--border-color); border-radius: 20px; width: 92%; max-width: 650px; padding: 25px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px;">
+                <h3 class="modal-title" id="progressModalTitle" style="font-size: 20px; font-weight: 700; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Syllabus Tracker</h3>
                 <button type="button" class="modal-close-btn" onclick="closeProgressModal()" style="background: none; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer; transition: color 0.2s;">&times;</button>
             </div>
-            <div id="progressModalBody" style="max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; padding-right: 5px;">
+            <!-- Modal Tabs -->
+            <div style="display: flex; gap: 10px; margin-bottom: 18px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                <button type="button" class="modal-tab-btn active" id="modalTabCurriculum" onclick="switchModalTab('curriculum')">📁 Units & Topics</button>
+                <button type="button" class="modal-tab-btn" id="modalTabWeekly" onclick="switchModalTab('weekly')">📅 Weekly Timeline</button>
+            </div>
+            <div id="progressModalBody" style="max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; padding-right: 5px;">
                 <!-- Loaded Dynamically -->
             </div>
         </div>

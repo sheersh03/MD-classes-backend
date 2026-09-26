@@ -13,6 +13,11 @@ public record ApiError(
 ) {
     public record FieldError(String field, String message) {}
 
+    @com.fasterxml.jackson.annotation.JsonProperty("fields")
+    public List<FieldError> fields() {
+        return fieldErrors;
+    }
+
     public static ApiError of(int status, String code, String message, String path) {
         return new ApiError(OffsetDateTime.now(), status, code, message, path, List.of());
     }
@@ -21,3 +26,4 @@ public record ApiError(
         return new ApiError(OffsetDateTime.now(), status, code, message, path, fieldErrors);
     }
 }
+

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="md_classes.portal.service.JwtServiceTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-07-04T17:44:16.687Z" hostname="INSPIRON" time="0.658">
+  <properties/>
+  <testcase name="rejectsShortSecret()" classname="md_classes.portal.service.JwtServiceTest" time="0.453"/>
+  <testcase name="accessTokenRoundTrip()" classname="md_classes.portal.service.JwtServiceTest" time="0.145"/>
+  <testcase name="accessTokenRejectedAsRefresh()" classname="md_classes.portal.service.JwtServiceTest" time="0.003"/>
+  <testcase name="wrongSecretIsRejected()" classname="md_classes.portal.service.JwtServiceTest" time="0.003"/>
+  <testcase name="refreshTokenRoundTrip()" classname="md_classes.portal.service.JwtServiceTest" time="0.002"/>
+  <testcase name="refreshTokenRejectedAsAccess()" classname="md_classes.portal.service.JwtServiceTest" time="0.003"/>
+  <testcase name="expiredTokenIsRejected()" classname="md_classes.portal.service.JwtServiceTest" time="0.015"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

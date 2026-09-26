@@ -44,8 +44,12 @@ function switchPanel(panel) {
     } else if (panel === 'syllabus-progress') {
         document.getElementById('syllabusNavBtn').classList.add('active');
         document.getElementById('syllabusProgressPanel').classList.add('active');
-        loadProgressList();
+        loadSubjectDropdowns().then(() => {
+            loadProgressList();
+        });
+        loadCurriculum();
     } else if (panel === 'fees-tracker') {
+
         document.getElementById('feesNavBtn').classList.add('active');
         document.getElementById('feesTrackerPanel').classList.add('active');
         loadFeesList();
@@ -131,13 +135,13 @@ document.getElementById('createStudentForm').addEventListener('submit', async (e
     submitBtn.disabled = true;
 
     const payload = {
-        name: document.getElementById('stdName').value,
-        email: document.getElementById('stdEmail').value,
+        name: document.getElementById('stdName').value.trim(),
+        email: document.getElementById('stdEmail').value.trim(),
         password: document.getElementById('stdPassword').value,
-        phone: document.getElementById('stdPhone').value,
-        course: document.getElementById('stdCourse').value,
-        batchId: document.getElementById('stdBatch').value,
-        studentClass: document.getElementById('stdClass').value
+        phone: document.getElementById('stdPhone').value.trim(),
+        course: document.getElementById('stdCourse').value.trim(),
+        batchId: document.getElementById('stdBatch').value.trim(),
+        studentClass: document.getElementById('stdClass').value.trim()
     };
 
     try {
@@ -164,8 +168,9 @@ document.getElementById('createStudentForm').addEventListener('submit', async (e
             const err = await response.json();
             console.error("<<< [API RESPONSE ERROR PAYLOAD]:", err);
             let errMsg = err.message || 'Failed to create student record';
-            if (err.fields && err.fields.length > 0) {
-                const fieldErrors = err.fields.map(f => `${f.field}: ${f.message}`).join(', ');
+            const fErrors = err.fieldErrors || err.fields;
+            if (fErrors && fErrors.length > 0) {
+                const fieldErrors = fErrors.map(f => `${f.field}: ${f.message}`).join(', ');
                 errMsg = `Validation failed: ${fieldErrors}`;
             }
             throw new Error(errMsg);
@@ -253,6 +258,288 @@ document.getElementById('editStudentForm').addEventListener('submit', async (e) 
     }
 });
 
+let cachedSubjectsList = [];
+
+async function loadSubjectDropdowns() {
+    try {
+        const response = await fetch('/apiv1/subjects', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) return;
+        cachedSubjectsList = await response.json();
+
+        const progSubSelect = document.getElementById('progSubject');
+        if (progSubSelect) {
+            const currentVal = progSubSelect.value;
+            progSubSelect.innerHTML = '<option value="">Select Subject</option>' + 
+                cachedSubjectsList.map(s => `<option value="${s.subjectName}">${s.subjectName}</option>`).join('');
+            if (currentVal && cachedSubjectsList.some(s => s.subjectName === currentVal)) {
+                progSubSelect.value = currentVal;
+            }
+        }
+
+        const filterSubSelect = document.getElementById('filterSubject');
+        if (filterSubSelect) {
+            const currentVal = filterSubSelect.value;
+            filterSubSelect.innerHTML = '<option value="">Select Subject</option>' + 
+                cachedSubjectsList.map(s => `<option value="${s.subjectName}">${s.subjectName}</option>`).join('');
+            if (currentVal && cachedSubjectsList.some(s => s.subjectName === currentVal)) {
+                filterSubSelect.value = currentVal;
+            } else if (cachedSubjectsList.length > 0) {
+                filterSubSelect.value = cachedSubjectsList[0].subjectName;
+            }
+        }
+    } catch (e) {
+        console.error("Failed to load subjects:", e);
+    }
+}
+
+function onProgSubjectChanged() {
+    const subName = document.getElementById('progSubject').value;
+    const unitSelect = document.getElementById('progUnit');
+    const topicsChipGroup = document.getElementById('availableTopicsGroup');
+    const topicsChips = document.getElementById('availableTopicsChips');
+
+    unitSelect.innerHTML = '<option value="">Select Unit / Chapter</option>';
+    topicsChipGroup.style.display = 'none';
+    topicsChips.innerHTML = '';
+
+    if (!subName) return;
+
+    const sub = cachedSubjectsList.find(s => s.subjectName === subName);
+    if (!sub || !sub.units || sub.units.length === 0) {
+        unitSelect.innerHTML = '<option value="">No units defined for this subject</option>';
+        return;
+    }
+
+    unitSelect.innerHTML = '<option value="">Select Unit / Chapter</option>' + 
+        sub.units.map(u => `<option value="${u.unitId}">${u.unitName}</option>`).join('');
+}
+
+function onProgUnitChanged() {
+    const subName = document.getElementById('progSubject').value;
+    const unitId = parseInt(document.getElementById('progUnit').value);
+    const topicsChipGroup = document.getElementById('availableTopicsGroup');
+    const topicsChips = document.getElementById('availableTopicsChips');
+
+    topicsChipGroup.style.display = 'none';
+    topicsChips.innerHTML = '';
+
+    if (!unitId || !subName) return;
+
+    const sub = cachedSubjectsList.find(s => s.subjectName === subName);
+    if (!sub || !sub.units) return;
+
+    const unit = sub.units.find(u => u.unitId === unitId);
+    if (!unit || !unit.topics || unit.topics.length === 0) {
+        topicsChips.innerHTML = '<span style="color: var(--text-secondary); font-size: 13px;">No topics defined under this unit yet.</span>';
+        topicsChipGroup.style.display = 'block';
+        return;
+    }
+
+    topicsChipGroup.style.display = 'block';
+    topicsChips.innerHTML = unit.topics.map(t => {
+        const safeName = t.topicName.replace(/'/g, "\\'");
+        return `<button type="button" class="topic-chip" onclick="toggleTopicChip('${safeName}', this)" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c4b5fd; padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; transition: all 0.2s;">
+            + ${t.topicName}
+        </button>`;
+    }).join('');
+}
+
+function toggleTopicChip(topicName, btn) {
+    const input = document.getElementById('progTopics');
+    let currentTopics = input.value ? input.value.split(',').map(s => s.trim()).filter(Boolean) : [];
+    
+    if (currentTopics.includes(topicName)) {
+        currentTopics = currentTopics.filter(t => t !== topicName);
+        btn.style.background = 'rgba(139, 92, 246, 0.15)';
+        btn.style.color = '#c4b5fd';
+        btn.textContent = '+ ' + topicName;
+    } else {
+        currentTopics.push(topicName);
+        btn.style.background = '#8b5cf6';
+        btn.style.color = '#ffffff';
+        btn.textContent = '✓ ' + topicName;
+    }
+    input.value = currentTopics.join(', ');
+}
+
+async function loadCurriculum() {
+    const container = document.getElementById('curriculumTreeView');
+    if (!container) return;
+
+    container.innerHTML = '<div class="loading-spinner">Loading curriculum hierarchy...</div>';
+
+    try {
+        const response = await fetch('/apiv1/subjects', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) throw new Error('Failed to load curriculum');
+        cachedSubjectsList = await response.json();
+
+        if (cachedSubjectsList.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 30px; color: var(--text-secondary); border: 1px dashed var(--border-color); border-radius: 12px;">
+                    <p style="margin-bottom: 12px; font-size: 15px;">No subjects defined yet in the database.</p>
+                    <button type="button" class="action-btn" onclick="openAddSubjectModal()" style="font-size: 13px; padding: 8px 16px;">Create First Subject</button>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = cachedSubjectsList.map(s => {
+            const unitsHtml = (s.units && s.units.length > 0) ? s.units.map(u => {
+                const topicsHtml = (u.topics && u.topics.length > 0) ? u.topics.map(t => `
+                    <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); border-radius: 16px; padding: 4px 10px; font-size: 12px;">
+                        <span>📖 ${t.topicName}</span>
+                        <button type="button" onclick="deleteTopic(${t.topicId})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0 2px; font-size: 14px; line-height: 1;" title="Delete Topic">&times;</button>
+                    </div>
+                `).join('') : '<span style="color: var(--text-secondary); font-size: 12px; font-style: italic;">No topics added to this unit yet.</span>';
+
+                const safeUnitName = u.unitName.replace(/'/g, "\\'");
+                return `
+                    <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; margin-top: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                            <span style="font-weight: 600; font-size: 14px; color: var(--text-primary);">📁 Unit: ${u.unitName}</span>
+                            <div style="display: flex; gap: 6px;">
+                                <button type="button" onclick="openAddTopicModal(${u.unitId}, '${safeUnitName}')" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">+ Add Topic</button>
+                                <button type="button" onclick="deleteUnit(${u.unitId})" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">Delete</button>
+                            </div>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;">
+                            ${topicsHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('') : '<p style="color: var(--text-secondary); font-size: 13px; font-style: italic; margin-top: 6px;">No units created yet for this subject.</p>';
+
+            const safeSubjectName = s.subjectName.replace(/'/g, "\\'");
+            return `
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 14px; padding: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                        <div>
+                            <span style="font-size: 16px; font-weight: 700; color: var(--accent-primary);">📚 ${s.subjectName}</span>
+                            <span style="font-size: 12px; color: var(--text-secondary); margin-left: 8px;">(${s.units ? s.units.length : 0} Units)</span>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" onclick="openAddUnitModal(${s.subjectId}, '${safeSubjectName}')" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;">+ Add Unit</button>
+                            <button type="button" onclick="deleteSubject(${s.subjectId})" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;">Delete</button>
+                        </div>
+                    </div>
+                    <div>
+                        ${unitsHtml}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        container.innerHTML = `<div style="color: #ef4444; padding: 15px;">Error loading curriculum: ${e.message}</div>`;
+    }
+}
+
+function openAddSubjectModal() {
+    const modal = document.getElementById('addSubjectModal');
+    if (modal) {
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+        document.getElementById('newSubjectName').value = '';
+        setTimeout(() => document.getElementById('newSubjectName').focus(), 50);
+    }
+}
+function closeAddSubjectModal() {
+    const modal = document.getElementById('addSubjectModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+}
+
+function openAddUnitModal(subjectId, subjectName) {
+    const modal = document.getElementById('addUnitModal');
+    if (modal) {
+        document.getElementById('unitTargetSubjectId').value = subjectId;
+        document.getElementById('addUnitModalTitle').textContent = `Add Unit to ${subjectName}`;
+        document.getElementById('newUnitName').value = '';
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+        setTimeout(() => document.getElementById('newUnitName').focus(), 50);
+    }
+}
+function closeAddUnitModal() {
+    const modal = document.getElementById('addUnitModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+}
+
+function openAddTopicModal(unitId, unitName) {
+    const modal = document.getElementById('addTopicModal');
+    if (modal) {
+        document.getElementById('topicTargetUnitId').value = unitId;
+        document.getElementById('addTopicModalTitle').textContent = `Add Topic to ${unitName}`;
+        document.getElementById('newTopicName').value = '';
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+        setTimeout(() => document.getElementById('newTopicName').focus(), 50);
+    }
+}
+function closeAddTopicModal() {
+    const modal = document.getElementById('addTopicModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+}
+
+async function deleteSubject(id) {
+    if (!confirm('Are you sure you want to delete this Subject and all its units/topics?')) return;
+    try {
+        const res = await fetch(`/apiv1/subjects/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) throw new Error('Failed to delete subject');
+        showToast('Subject deleted successfully', true);
+        loadSubjectDropdowns();
+        loadCurriculum();
+    } catch (e) {
+        showToast(e.message, false);
+    }
+}
+
+async function deleteUnit(id) {
+    if (!confirm('Are you sure you want to delete this Unit and all its topics?')) return;
+    try {
+        const res = await fetch(`/apiv1/units/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) throw new Error('Failed to delete unit');
+        showToast('Unit deleted successfully', true);
+        loadSubjectDropdowns();
+        loadCurriculum();
+    } catch (e) {
+        showToast(e.message, false);
+    }
+}
+
+async function deleteTopic(id) {
+    if (!confirm('Are you sure you want to delete this Topic?')) return;
+    try {
+        const res = await fetch(`/apiv1/topics/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) throw new Error('Failed to delete topic');
+        showToast('Topic deleted successfully', true);
+        loadSubjectDropdowns();
+        loadCurriculum();
+    } catch (e) {
+        showToast(e.message, false);
+    }
+}
+
 async function loadProgressList() {
     const tbody = document.getElementById('progressListTableBody');
     if (!tbody) return;
@@ -317,60 +604,150 @@ async function loadProgressList() {
     }
 }
 
-// Bind updateSyllabusForm handler
-setTimeout(() => {
-    const syllabusForm = document.getElementById('updateSyllabusForm');
-    if (syllabusForm) {
-        syllabusForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const studentClass = document.getElementById('progClass').value;
-            const subject = document.getElementById('progSubject').value;
-            const weekNumber = parseInt(document.getElementById('progWeek').value);
-            const percentCompleted = parseInt(document.getElementById('progPercent').value);
-            const isMilestone = document.getElementById('progMilestone').checked;
-            const topicsCovered = document.getElementById('progTopics').value;
+// Bind updateSyllabusForm and Curriculum modals handlers
+const syllabusForm = document.getElementById('updateSyllabusForm');
+if (syllabusForm) {
+    syllabusForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const studentClass = document.getElementById('progClass').value;
+        const subject = document.getElementById('progSubject').value;
+        const weekNumber = parseInt(document.getElementById('progWeek').value);
+        const percentCompleted = parseInt(document.getElementById('progPercent').value);
+        const isMilestone = document.getElementById('progMilestone').checked;
+        const topicsCovered = document.getElementById('progTopics').value;
 
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            submitBtn.textContent = 'Saving...';
-            submitBtn.disabled = true;
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.textContent = 'Saving...';
+        submitBtn.disabled = true;
 
-            const payload = { studentClass, subject, weekNumber, percentCompleted, isMilestone, topicsCovered };
+        const payload = { studentClass, subject, weekNumber, percentCompleted, isMilestone, topicsCovered };
 
-            try {
-                console.log(">>> [API REQUEST] PUT /apiv1/syllabus-progress");
-                const response = await fetch('/apiv1/syllabus-progress', {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + token
-                    },
-                    body: JSON.stringify(payload)
-                });
+        try {
+            console.log(">>> [API REQUEST] PUT /apiv1/syllabus-progress");
+            const response = await fetch('/apiv1/syllabus-progress', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify(payload)
+            });
 
-                if (!response.ok) {
-                    const err = await response.json();
-                    let errMsg = err.message || 'Failed to update syllabus progress';
-                    if (err.fields && err.fields.length > 0) {
-                        const fieldErrors = err.fields.map(f => `${f.field}: ${f.message}`).join(', ');
-                        errMsg = `Validation failed: ${fieldErrors}`;
-                    }
-                    throw new Error(errMsg);
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                let errMsg = err.message || 'Failed to update syllabus progress';
+                const fErrors = err.fieldErrors || err.fields;
+                if (fErrors && fErrors.length > 0) {
+                    const fieldErrors = fErrors.map(f => `${f.field}: ${f.message}`).join(', ');
+                    errMsg = `Validation failed: ${fieldErrors}`;
                 }
-
-                showToast(`Syllabus progress for Week ${weekNumber} saved successfully!`, true);
-                e.target.reset();
-                document.getElementById('filterClass').value = studentClass;
-                document.getElementById('filterSubject').value = subject;
-                loadProgressList();
-            } catch (err) {
-                showToast(err.message, false);
-            } finally {
-                submitBtn.textContent = 'Save Progress';
-                submitBtn.disabled = false;
+                throw new Error(errMsg);
             }
-        });
-    }
-}, 500);
+
+            showToast(`Syllabus progress for Week ${weekNumber} saved successfully!`, true);
+            e.target.reset();
+            document.getElementById('filterClass').value = studentClass;
+            document.getElementById('filterSubject').value = subject;
+            document.getElementById('availableTopicsGroup').style.display = 'none';
+            loadProgressList();
+        } catch (err) {
+            showToast(err.message, false);
+        } finally {
+            submitBtn.textContent = 'Save Progress';
+            submitBtn.disabled = false;
+        }
+    });
+}
+
+const addSubForm = document.getElementById('addSubjectForm');
+if (addSubForm) {
+    addSubForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const subjectName = document.getElementById('newSubjectName').value.trim();
+        if (!subjectName) return;
+        try {
+            const res = await fetch('/apiv1/subjects', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({ subjectName })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || 'Failed to create subject');
+            }
+            showToast('Subject created successfully!', true);
+            closeAddSubjectModal();
+            loadSubjectDropdowns();
+            loadCurriculum();
+        } catch (err) {
+            showToast(err.message, false);
+        }
+    });
+}
+
+const addUForm = document.getElementById('addUnitForm');
+if (addUForm) {
+    addUForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const subjectId = parseInt(document.getElementById('unitTargetSubjectId').value);
+        const unitName = document.getElementById('newUnitName').value.trim();
+        if (!unitName || !subjectId) return;
+        try {
+            const res = await fetch('/apiv1/units', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({ subjectId, unitName })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || 'Failed to add unit');
+            }
+            showToast('Unit added successfully!', true);
+            closeAddUnitModal();
+            loadSubjectDropdowns();
+            loadCurriculum();
+        } catch (err) {
+            showToast(err.message, false);
+        }
+    });
+}
+
+const addTForm = document.getElementById('addTopicForm');
+if (addTForm) {
+    addTForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const unitId = parseInt(document.getElementById('topicTargetUnitId').value);
+        const topicName = document.getElementById('newTopicName').value.trim();
+        if (!topicName || !unitId) return;
+        try {
+            const res = await fetch('/apiv1/topics', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({ unitId, topicName })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || 'Failed to add topic');
+            }
+            showToast('Topic added successfully!', true);
+            closeAddTopicModal();
+            loadSubjectDropdowns();
+            loadCurriculum();
+        } catch (err) {
+            showToast(err.message, false);
+        }
+    });
+}
+
 
 function logout() {
     localStorage.clear();
@@ -489,6 +866,7 @@ async function openFeeModal(studentId, name, email) {
     document.getElementById('feePaid').value = 0;
     document.getElementById('feeRemainingText').textContent = '₹0';
 
+    modal.classList.add('active');
     modal.style.display = 'flex';
 
     try {
@@ -509,7 +887,11 @@ async function openFeeModal(studentId, name, email) {
 }
 
 function closeFeeModal() {
-    document.getElementById('manageFeesModal').style.display = 'none';
+    const modal = document.getElementById('manageFeesModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
 }
 
 function updateRemainingDisplay() {
@@ -520,62 +902,61 @@ function updateRemainingDisplay() {
 }
 
 // Bind live changes for remaining display
-setTimeout(() => {
-    const feeTotalInput = document.getElementById('feeTotal');
-    const feePaidInput = document.getElementById('feePaid');
-    if (feeTotalInput && feePaidInput) {
-        feeTotalInput.addEventListener('input', updateRemainingDisplay);
-        feePaidInput.addEventListener('input', updateRemainingDisplay);
-    }
+const feeTotalInput = document.getElementById('feeTotal');
+const feePaidInput = document.getElementById('feePaid');
+if (feeTotalInput && feePaidInput) {
+    feeTotalInput.addEventListener('input', updateRemainingDisplay);
+    feePaidInput.addEventListener('input', updateRemainingDisplay);
+}
 
-    const manageFeesForm = document.getElementById('manageFeesForm');
-    if (manageFeesForm) {
-        manageFeesForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const studentId = parseInt(document.getElementById('feeStdId').value);
-            const totalFee = parseInt(document.getElementById('feeTotal').value) || 0;
-            const paidAmount = parseInt(document.getElementById('feePaid').value) || 0;
+const manageFeesForm = document.getElementById('manageFeesForm');
+if (manageFeesForm) {
+    manageFeesForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const studentId = parseInt(document.getElementById('feeStdId').value);
+        const totalFee = parseInt(document.getElementById('feeTotal').value) || 0;
+        const paidAmount = parseInt(document.getElementById('feePaid').value) || 0;
 
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            submitBtn.textContent = 'Saving...';
-            submitBtn.disabled = true;
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.textContent = 'Saving...';
+        submitBtn.disabled = true;
 
-            const payload = { studentId, totalFee, paidAmount };
+        const payload = { studentId, totalFee, paidAmount };
 
-            try {
-                console.log(">>> [API REQUEST] PUT /apiv1/fees");
-                const response = await fetch('/apiv1/fees', {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + token
-                    },
-                    body: JSON.stringify(payload)
-                });
+        try {
+            console.log(">>> [API REQUEST] PUT /apiv1/fees");
+            const response = await fetch('/apiv1/fees', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify(payload)
+            });
 
-                if (!response.ok) {
-                    const err = await response.json();
-                    let errMsg = err.message || 'Failed to update student fee record';
-                    if (err.fields && err.fields.length > 0) {
-                        const fieldErrors = err.fields.map(f => `${f.field}: ${f.message}`).join(', ');
-                        errMsg = `Validation failed: ${fieldErrors}`;
-                    }
-                    throw new Error(errMsg);
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                let errMsg = err.message || 'Failed to update student fee record';
+                const fErrors = err.fieldErrors || err.fields;
+                if (fErrors && fErrors.length > 0) {
+                    const fieldErrors = fErrors.map(f => `${f.field}: ${f.message}`).join(', ');
+                    errMsg = `Validation failed: ${fieldErrors}`;
                 }
-
-                showToast('Student fee record updated successfully!', true);
-                closeFeeModal();
-                if (document.getElementById('feesTrackerPanel').classList.contains('active')) {
-                    loadFeesList();
-                } else {
-                    loadStudents();
-                }
-            } catch (err) {
-                showToast(err.message, false);
-            } finally {
-                submitBtn.textContent = 'Save Fees';
-                submitBtn.disabled = false;
+                throw new Error(errMsg);
             }
-        });
-    }
-}, 500);
+
+            showToast('Student fee record updated successfully!', true);
+            closeFeeModal();
+            if (document.getElementById('feesTrackerPanel').classList.contains('active')) {
+                loadFeesList();
+            } else {
+                loadStudents();
+            }
+        } catch (err) {
+            showToast(err.message, false);
+        } finally {
+            submitBtn.textContent = 'Save Fees';
+            submitBtn.disabled = false;
+        }
+    });
+}

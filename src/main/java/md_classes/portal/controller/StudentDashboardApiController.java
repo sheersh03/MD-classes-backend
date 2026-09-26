@@ -28,11 +28,13 @@ public class StudentDashboardApiController {
     private final AuthService authService;
     private final StudentRepository studentRepository;
     private final md_classes.portal.repository.StudentFeeRepository studentFeeRepository;
+    private final md_classes.portal.repository.SubjectRepository subjectRepository;
 
-    public StudentDashboardApiController(AuthService authService, StudentRepository studentRepository, md_classes.portal.repository.StudentFeeRepository studentFeeRepository) {
+    public StudentDashboardApiController(AuthService authService, StudentRepository studentRepository, md_classes.portal.repository.StudentFeeRepository studentFeeRepository, md_classes.portal.repository.SubjectRepository subjectRepository) {
         this.authService = authService;
         this.studentRepository = studentRepository;
         this.studentFeeRepository = studentFeeRepository;
+        this.subjectRepository = subjectRepository;
     }
 
     @PostMapping("/login")
@@ -97,7 +99,10 @@ public class StudentDashboardApiController {
         studentDetails.put("studentName", studentName != null ? studentName : "Student");
         studentDetails.put("studentClass", studentClass != null ? studentClass : "Not Assigned");
 
-        List<String> subjects = md_classes.portal.domain.Subject.getSubjectsForClass(studentClass);
+        List<String> defaultSubjects = md_classes.portal.domain.Subject.getSubjectsForClass(studentClass);
+        java.util.LinkedHashSet<String> allSubjectNames = new java.util.LinkedHashSet<>(defaultSubjects);
+        subjectRepository.findAll().forEach(s -> allSubjectNames.add(s.getSubjectName()));
+        List<String> subjects = new java.util.ArrayList<>(allSubjectNames);
 
         List<Map<String, String>> upcomingClasses = List.of(
                 Map.of("day", "Monday", "time", "10:00 AM - 12:30 PM", "title", "Advanced Java & Spring Boot", "room", "Room 402", "instructor", "Prof. Sharma"),

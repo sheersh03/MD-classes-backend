@@ -62,6 +62,13 @@ public class ApiExceptionHandler {
                 .body(ApiError.of(404, "NOT_FOUND", ex.getMessage(), req.getRequestURI()));
     }
 
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ApiError> noResource(org.springframework.web.servlet.resource.NoResourceFoundException ex, HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiError.of(404, "NOT_FOUND", ex.getMessage(), req.getRequestURI()));
+    }
+
+
     @ExceptionHandler(DuplicateEmailException.class)
     public ResponseEntity<ApiError> duplicate(DuplicateEmailException ex, HttpServletRequest req) {
         return ResponseEntity.status(HttpStatus.CONFLICT)

@@ -162,16 +162,28 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="progSubject">Subject</label>
-                            <select id="progSubject" class="form-input" required>
-                                <option value="">Select Subject</option>
-                                <option value="Maths">Maths</option>
-                                <option value="Science">Science</option>
-                                <option value="Social Science">Social Science</option>
-                                <option value="Hindi">Hindi</option>
-                                <option value="English">English</option>
-                                <option value="Computer">Computer</option>
+                            <select id="progSubject" class="form-input" required onchange="onProgSubjectChanged()">
+                                <option value="">Loading subjects...</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group" id="progUnitContainer">
+                            <label class="form-label" for="progUnit">Unit / Chapter</label>
+                            <select id="progUnit" class="form-input" onchange="onProgUnitChanged()">
+                                <option value="">Select Subject first</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="progTopics">Topics Covered</label>
+                            <input type="text" id="progTopics" class="form-input" placeholder="e.g. Real Numbers, Euclid Lemma" required autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="availableTopicsGroup" style="display: none; background: rgba(255, 255, 255, 0.02); border: 1px dashed var(--border-color); border-radius: 12px; padding: 12px;">
+                        <label class="form-label" style="font-size: 13px; margin-bottom: 8px;">Click to toggle topics into "Topics Covered":</label>
+                        <div id="availableTopicsChips" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; align-items: end;">
@@ -189,15 +201,27 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label class="form-label" for="progTopics">Topics Covered</label>
-                        <input type="text" id="progTopics" class="form-input" placeholder="e.g. Quadratic Equations, APs" required autocomplete="off">
-                    </div>
-
                     <button type="submit" class="action-btn" style="width: fit-content; padding: 12px 24px; align-self: flex-start; margin-top: 10px;">
                         Save Progress
                     </button>
                 </form>
+            </div>
+
+            <!-- Curriculum Hierarchy: Subject -> Unit -> Topic -->
+            <div class="card" style="margin-top: 25px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <h2 style="font-size: 20px; font-weight: 600;">Curriculum Management</h2>
+                        <p style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">Manage Subjects, Units, and Topics in the database.</p>
+                    </div>
+                    <button type="button" class="action-btn" onclick="openAddSubjectModal()" style="font-size: 13px; padding: 10px 18px;">
+                        + Add Subject
+                    </button>
+                </div>
+
+                <div id="curriculumTreeView" style="display: flex; flex-direction: column; gap: 15px;">
+                    <div class="loading-spinner">Loading curriculum...</div>
+                </div>
             </div>
 
             <div class="card" style="margin-top: 25px;">
@@ -208,16 +232,12 @@
                         <option value="Class 9">Class 9</option>
                     </select>
                     <select id="filterSubject" class="form-input" style="max-width: 200px;" onchange="loadProgressList()">
-                        <option value="Maths">Maths</option>
-                        <option value="Science">Science</option>
-                        <option value="Social Science">Social Science</option>
-                        <option value="Hindi">Hindi</option>
-                        <option value="English">English</option>
-                        <option value="Computer">Computer</option>
+                        <option value="">Loading subjects...</option>
                     </select>
                 </div>
                 
                 <div class="table-container" style="overflow-x: auto;">
+
                     <table class="student-table" style="width: 100%; border-collapse: collapse; text-align: left;">
                         <thead>
                             <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 14px;">
@@ -392,8 +412,71 @@
         </div>
     </div>
 
+    <!-- Add Subject Modal -->
+    <div id="addSubjectModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title">Create New Subject</h3>
+                <button type="button" class="modal-close-btn" onclick="closeAddSubjectModal()">&times;</button>
+            </div>
+            <form id="addSubjectForm">
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label class="form-label" for="newSubjectName">Subject Name</label>
+                    <input type="text" id="newSubjectName" class="form-input" placeholder="e.g. Mathematics, Science" required autocomplete="off">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="secondary-btn" onclick="closeAddSubjectModal()">Cancel</button>
+                    <button type="submit" class="submit-btn" style="margin: 0; padding: 12px 24px;">Create Subject</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Unit Modal -->
+    <div id="addUnitModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title" id="addUnitModalTitle">Add Unit to Subject</h3>
+                <button type="button" class="modal-close-btn" onclick="closeAddUnitModal()">&times;</button>
+            </div>
+            <form id="addUnitForm">
+                <input type="hidden" id="unitTargetSubjectId">
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label class="form-label" for="newUnitName">Unit / Chapter Name</label>
+                    <input type="text" id="newUnitName" class="form-input" placeholder="e.g. Real Numbers, Polynomials" required autocomplete="off">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="secondary-btn" onclick="closeAddUnitModal()">Cancel</button>
+                    <button type="submit" class="submit-btn" style="margin: 0; padding: 12px 24px;">Add Unit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Topic Modal -->
+    <div id="addTopicModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title" id="addTopicModalTitle">Add Topic to Unit</h3>
+                <button type="button" class="modal-close-btn" onclick="closeAddTopicModal()">&times;</button>
+            </div>
+            <form id="addTopicForm">
+                <input type="hidden" id="topicTargetUnitId">
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label class="form-label" for="newTopicName">Topic Name</label>
+                    <input type="text" id="newTopicName" class="form-input" placeholder="e.g. Introduction, Exercise 1.1" required autocomplete="off">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="secondary-btn" onclick="closeAddTopicModal()">Cancel</button>
+                    <button type="submit" class="submit-btn" style="margin: 0; padding: 12px 24px;">Add Topic</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="toast" class="toast"></div>
 
     <script src="/js/dashboard.js"></script>
 </body>
 </html>
+

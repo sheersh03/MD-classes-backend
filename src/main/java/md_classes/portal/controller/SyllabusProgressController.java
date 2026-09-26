@@ -93,13 +93,19 @@ public class SyllabusProgressController {
             }
         }
 
-        if (targetClass == null || subject == null) {
+        if (targetClass == null) {
             return ResponseEntity.ok(List.of());
         }
 
         String normalizedClass = normalizeClassName(targetClass);
-        List<SyllabusProgress> progressList = syllabusProgressRepository
-                .findByStudentClassAndSubjectOrderByWeekNumberAsc(normalizedClass, subject);
+        List<SyllabusProgress> progressList;
+        if (subject != null && !subject.trim().isEmpty()) {
+            progressList = syllabusProgressRepository
+                    .findByStudentClassAndSubjectOrderByWeekNumberAsc(normalizedClass, subject.trim());
+        } else {
+            progressList = syllabusProgressRepository
+                    .findByStudentClassOrderByWeekNumberAsc(normalizedClass);
+        }
 
         return ResponseEntity.ok(progressList);
     }
