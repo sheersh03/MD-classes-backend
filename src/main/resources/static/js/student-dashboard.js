@@ -161,17 +161,73 @@ let activeSubjectsList = [];
 let currentStudentClass = '';
 let cachedCurriculum = [];
 let cachedProgressList = [];
+let cachedTopicProgress = []; // List of StudentTopicProgress records
 let activeModalSubject = '';
 let activeModalTab = 'curriculum';
 
+function getTopicProgress(topicId) {
+    if (!topicId) return null;
+    return cachedTopicProgress.find(p => p.topicId === topicId || (p.topic && p.topic.topicId === topicId)) || null;
+}
+
+function calculateUnitStats(unit, coveredTopicsMap) {
+    const topics = unit && unit.topics ? unit.topics : [];
+    if (topics.length === 0) {
+        return { pct: 0, completedCount: 0, totalCount: 0 };
+    }
+    let totalPct = 0;
+    let completedCount = 0;
+
+    topics.forEach(t => {
+        const prog = getTopicProgress(t.topicId);
+        if (prog) {
+            const pVal = prog.progressPercentage != null ? prog.progressPercentage : (prog.completed ? 100 : 0);
+            totalPct += pVal;
+            if (pVal >= 100 || prog.status === 'Completed') {
+                completedCount++;
+            }
+        } else if (coveredTopicsMap && coveredTopicsMap.has(t.topicName.toLowerCase())) {
+            totalPct += 100;
+            completedCount++;
+        }
+    });
+
+    const pct = Math.round(totalPct / topics.length);
+    return { pct, completedCount, totalCount: topics.length };
+}
+
+function calculateSubjectActualPct(curriculum, coveredTopicsMap) {
+    if (!curriculum || !curriculum.units || curriculum.units.length === 0) return 0;
+    let totalTopics = 0;
+    let totalProgressSum = 0;
+
+    curriculum.units.forEach(u => {
+        const uTopics = u.topics || [];
+        totalTopics += uTopics.length;
+        uTopics.forEach(t => {
+            const prog = getTopicProgress(t.topicId);
+            if (prog) {
+                totalProgressSum += prog.progressPercentage != null ? prog.progressPercentage : (prog.completed ? 100 : 0);
+            } else if (coveredTopicsMap && coveredTopicsMap.has(t.topicName.toLowerCase())) {
+                totalProgressSum += 100;
+            }
+        });
+    });
+
+    return totalTopics > 0 ? Math.round(totalProgressSum / totalTopics) : 0;
+}
+
 async function loadCurriculumAndProgress() {
     try {
-        console.log(">>> [API REQUEST] Loading Curriculum and Weekly Progress");
-        const [subRes, progRes] = await Promise.allSettled([
+        console.log(">>> [API REQUEST] Loading Curriculum, Weekly Progress, and Student Topic Progress");
+        const [subRes, progRes, topicProgRes] = await Promise.allSettled([
             fetch('/apiv1/subjects', {
                 headers: { 'Authorization': 'Bearer ' + token }
             }),
             fetch('/apiv1/syllabus-progress', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            }),
+            fetch('/apiv1/student-topic-progress', {
                 headers: { 'Authorization': 'Bearer ' + token }
             })
         ]);
@@ -185,9 +241,16 @@ async function loadCurriculumAndProgress() {
 
         if (progRes.status === 'fulfilled' && progRes.value.ok) {
             cachedProgressList = await progRes.value.json();
-            console.log("<<< [API PROGRESS RECEIVED]:", cachedProgressList);
+            console.log("<<< [API WEEKLY PROGRESS RECEIVED]:", cachedProgressList);
         } else {
-            console.warn("Could not retrieve progress records", progRes);
+            console.warn("Could not retrieve weekly progress records", progRes);
+        }
+
+        if (topicProgRes.status === 'fulfilled' && topicProgRes.value.ok) {
+            cachedTopicProgress = await topicProgRes.value.json();
+            console.log("<<< [API STUDENT TOPIC PROGRESS RECEIVED]:", cachedTopicProgress);
+        } else {
+            console.warn("Could not retrieve student topic progress records", topicProgRes);
         }
 
         // Calculate Overview Banner Metrics
@@ -292,15 +355,6 @@ function renderSyllabusDirectory() {
         const subProgress = cachedProgressList.filter(p => p.subject && p.subject.toLowerCase() === subject.toLowerCase());
         const hasMilestone = subProgress.some(p => p.isMilestone);
         
-        // Latest progress percentage or calculated from covered topics
-        let completionPct = 0;
-        let lastWeekNum = 0;
-        if (subProgress.length > 0) {
-            const latest = subProgress[subProgress.length - 1];
-            completionPct = latest.percentCompleted || 0;
-            lastWeekNum = latest.weekNumber || 0;
-        }
-
         // Extract covered topics from weekly progress records
         const coveredTopicsMap = new Map();
         subProgress.forEach(p => {
@@ -311,26 +365,79 @@ function renderSyllabusDirectory() {
             }
         });
 
-        // Build inline units and topics HTML
+        // Calculate actual completion percentage from topic progress or fallback to weekly timeline
+        let completionPct = calculateSubjectActualPct(cur, coveredTopicsMap);
+        let lastWeekNum = 0;
+        if (subProgress.length > 0) {
+            const latest = subProgress[subProgress.length - 1];
+            if (completionPct === 0 && latest.percentCompleted) {
+                completionPct = latest.percentCompleted;
+            }
+            lastWeekNum = latest.weekNumber || 0;
+        }
+
+        // Build inline units and topics HTML with thin cylindrical fluid progress line
         let unitsDrawerHtml = '';
         if (unitsCount > 0) {
             const unitsListHtml = units.map(u => {
                 const uTopics = u.topics || [];
+                const unitStats = calculateUnitStats(u, coveredTopicsMap);
+
                 const topicsPills = uTopics.length > 0 ? uTopics.map(t => {
-                    const isCovered = coveredTopicsMap.has(t.topicName.toLowerCase());
-                    const weekCovered = coveredTopicsMap.get(t.topicName.toLowerCase());
-                    return isCovered ? 
-                        `<span class="topic-pill covered" title="Covered in Week ${weekCovered}">✓ ${t.topicName}</span>` :
-                        `<span class="topic-pill pending">⏳ ${t.topicName}</span>`;
+                    const prog = getTopicProgress(t.topicId);
+                    let isCovered = false;
+                    let isInProgress = false;
+                    let topicPct = 0;
+                    let weekCovered = null;
+
+                    if (prog) {
+                        topicPct = prog.progressPercentage != null ? prog.progressPercentage : (prog.completed ? 100 : 0);
+                        isCovered = topicPct >= 100 || prog.status === 'Completed';
+                        isInProgress = !isCovered && (topicPct > 0 || prog.status === 'In_Progress');
+                    } else if (coveredTopicsMap.has(t.topicName.toLowerCase())) {
+                        isCovered = true;
+                        topicPct = 100;
+                        weekCovered = coveredTopicsMap.get(t.topicName.toLowerCase());
+                    }
+
+                    const safeTopicName = t.topicName.replace(/'/g, "\\'");
+                    const statusClass = isCovered ? 'completed' : (isInProgress ? 'in-progress' : 'pending');
+                    const statusIcon = isCovered ? '✓' : (isInProgress ? '⚡' : '⏳');
+                    const tooltip = isCovered ? 
+                        (weekCovered ? `Completed (Week ${weekCovered}) • Click to toggle` : `Completed (100%) • Click to toggle`) : 
+                        (isInProgress ? `In Progress (${topicPct}%) • Click to toggle` : `Click to mark Completed`);
+
+                    return `
+                        <button type="button" class="topic-interactive-pill ${statusClass}" 
+                                id="drawerTopicPill_${t.topicId}"
+                                onclick="toggleStudentTopicProgress(${t.topicId}, '${safeTopicName}', ${u.unitId})"
+                                title="${tooltip}">
+                            <span class="topic-check-icon">${statusIcon}</span>
+                            <span>${t.topicName}</span>
+                            ${topicPct > 0 ? `<span class="topic-pct-tag">${topicPct}%</span>` : ''}
+                        </button>
+                    `;
                 }).join('') : '<span style="color: var(--text-secondary); font-size: 11px; font-style: italic;">No topics yet</span>';
 
                 return `
-                    <div class="card-unit-block">
+                    <div class="card-unit-block" id="unitCard_${u.unitId}">
                         <div class="card-unit-title">
-                            <span>📁 ${u.unitName}</span>
-                            <span style="font-size: 11px; color: var(--text-secondary);">${uTopics.length} topics</span>
+                            <span style="font-weight: 600; font-size: 13px; color: var(--text-primary);">📁 Unit: ${u.unitName}</span>
+                            <div class="unit-fluid-stats">
+                                <span class="unit-fluid-badge">
+                                    <span class="fluid-droplet">💧</span>
+                                    <strong id="unitPctText_${u.unitId}">${unitStats.pct}%</strong>
+                                </span>
+                                <span class="unit-topics-count" id="unitTopicsCount_${u.unitId}">${unitStats.completedCount} / ${unitStats.totalCount} Topics</span>
+                            </div>
                         </div>
-                        <div class="card-topics-wrap">
+                        
+                        <!-- Thin Cylindrical Line with Glowing Fluid Actual Progress -->
+                        <div class="unit-cylinder-tube" title="Unit Progress: ${unitStats.pct}%">
+                            <div class="unit-cylinder-fluid" id="unitFluidBar_${u.unitId}" style="width: ${unitStats.pct}%;"></div>
+                        </div>
+
+                        <div class="card-topics-wrap" style="margin-top: 6px;">
                             ${topicsPills}
                         </div>
                     </div>
@@ -359,7 +466,7 @@ function renderSyllabusDirectory() {
         const classClean = normalizedClass ? `Class_${normalizedClass.toUpperCase()}` : 'Syllabus';
 
         return `
-            <div class="subject-syllabus-card">
+            <div class="subject-syllabus-card" id="subjCard_${idx}">
                 <div>
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                         <div style="background: rgba(255,255,255,0.03); padding: 8px; border-radius: 12px; display: inline-flex;">
@@ -382,14 +489,14 @@ function renderSyllabusDirectory() {
                         ${lastWeekNum > 0 ? `<span style="font-size: 11px; color: var(--text-secondary);">Week ${lastWeekNum} Active</span>` : ''}
                     </div>
 
-                    <!-- Progress Bar -->
+                    <!-- Subject Overall Progress Bar -->
                     <div style="margin-bottom: 14px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">
                             <span>Syllabus Completion</span>
-                            <span style="font-weight: 700; color: #10b981;">${completionPct}%</span>
+                            <span style="font-weight: 700; color: #10b981;" id="subjPctText_${idx}">${completionPct}%</span>
                         </div>
                         <div style="background: rgba(255, 255, 255, 0.05); border-radius: 10px; height: 6px; width: 100%; overflow: hidden;">
-                            <div style="background: linear-gradient(90deg, #10b981, #6366f1); width: ${completionPct}%; height: 100%; border-radius: 10px; transition: width 0.3s ease;"></div>
+                            <div id="subjBar_${idx}" style="background: linear-gradient(90deg, #10b981, #6366f1); width: ${completionPct}%; height: 100%; border-radius: 10px; transition: width 0.4s ease;"></div>
                         </div>
                     </div>
 
@@ -415,6 +522,146 @@ function renderSyllabusDirectory() {
             </div>
         `;
     }).join('');
+}
+
+// Interactive topic progress toggle with live fluid animation
+async function toggleStudentTopicProgress(topicId, topicName, unitId) {
+    try {
+        const existing = getTopicProgress(topicId);
+        const wasCompleted = existing ? (existing.progressPercentage >= 100 || existing.status === 'Completed' || existing.completed) : false;
+        const newPct = wasCompleted ? 0 : 100;
+        const newCompleted = newPct >= 100;
+        const newStatus = newCompleted ? 'Completed' : 'Not_Started';
+
+        // Optimistically update cachedTopicProgress
+        if (existing) {
+            existing.progressPercentage = newPct;
+            existing.status = newStatus;
+            existing.completed = newCompleted;
+        } else {
+            cachedTopicProgress.push({
+                topicId: topicId,
+                progressPercentage: newPct,
+                status: newStatus,
+                completed: newCompleted
+            });
+        }
+
+        // Live update UI elements (fluid bar, pill, stats)
+        refreshUnitUI(unitId);
+        if (activeModalTab === 'curriculum') {
+            renderModalTabContent();
+        }
+
+        console.log(`>>> [API REQUEST] PUT /apiv1/student-topic-progress topicId=${topicId} (${newPct}%)`);
+        const res = await fetch('/apiv1/student-topic-progress', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({
+                topicId: topicId,
+                progressPercentage: newPct,
+                completed: newCompleted,
+                status: newStatus
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || 'Failed to update topic progress');
+        }
+
+        const saved = await res.json();
+        const idx = cachedTopicProgress.findIndex(p => p.topicId === topicId);
+        if (idx !== -1) {
+            cachedTopicProgress[idx] = saved;
+        }
+
+        refreshUnitUI(unitId);
+
+        showToast(`${newCompleted ? '✓' : '⏳'} ${topicName} marked as ${newCompleted ? 'Completed' : 'Pending'}!`, true);
+    } catch (err) {
+        console.error("Error updating topic progress:", err);
+        showToast(err.message || 'Failed to update progress', false);
+    }
+}
+
+function refreshUnitUI(unitId) {
+    // Find unit object across all curriculum
+    let targetUnit = null;
+    let parentSubject = null;
+    for (const sub of cachedCurriculum) {
+        if (sub.units) {
+            const u = sub.units.find(x => x.unitId === unitId);
+            if (u) {
+                targetUnit = u;
+                parentSubject = sub;
+                break;
+            }
+        }
+    }
+
+    if (!targetUnit) return;
+
+    const subProgress = parentSubject ? cachedProgressList.filter(p => p.subject && p.subject.toLowerCase() === parentSubject.subjectName.toLowerCase()) : [];
+    const coveredTopicsMap = new Map();
+    subProgress.forEach(p => {
+        if (p.topicsCovered) {
+            p.topicsCovered.split(',').map(s => s.trim()).filter(Boolean).forEach(t => {
+                coveredTopicsMap.set(t.toLowerCase(), p.weekNumber);
+            });
+        }
+    });
+
+    const stats = calculateUnitStats(targetUnit, coveredTopicsMap);
+
+    // Update Drawer Fluid Bar & Badges
+    const fluidBar = document.getElementById(`unitFluidBar_${unitId}`);
+    const pctText = document.getElementById(`unitPctText_${unitId}`);
+    const countText = document.getElementById(`unitTopicsCount_${unitId}`);
+
+    if (fluidBar) fluidBar.style.width = stats.pct + '%';
+    if (pctText) pctText.textContent = stats.pct + '%';
+    if (countText) countText.textContent = `${stats.completedCount} / ${stats.totalCount} Topics`;
+
+    // Update Modal Fluid Bar & Badges
+    const modalFluidBar = document.getElementById(`modalUnitFluidBar_${unitId}`);
+    const modalPctText = document.getElementById(`modalUnitPctText_${unitId}`);
+    const modalCountText = document.getElementById(`modalUnitTopicsCount_${unitId}`);
+
+    if (modalFluidBar) modalFluidBar.style.width = stats.pct + '%';
+    if (modalPctText) modalPctText.textContent = stats.pct + '%';
+    if (modalCountText) modalCountText.textContent = `${stats.completedCount} / ${stats.totalCount} Covered`;
+
+    // Update Topic Pills in Drawer
+    if (targetUnit.topics) {
+        targetUnit.topics.forEach(t => {
+            const pill = document.getElementById(`drawerTopicPill_${t.topicId}`);
+            if (pill) {
+                const prog = getTopicProgress(t.topicId);
+                const isCovered = prog ? (prog.progressPercentage >= 100 || prog.status === 'Completed' || prog.completed) : coveredTopicsMap.has(t.topicName.toLowerCase());
+                const isInProgress = !isCovered && prog && (prog.progressPercentage > 0 || prog.status === 'In_Progress');
+                
+                pill.className = `topic-interactive-pill ${isCovered ? 'completed' : (isInProgress ? 'in-progress' : 'pending')}`;
+                const checkIcon = pill.querySelector('.topic-check-icon');
+                if (checkIcon) checkIcon.textContent = isCovered ? '✓' : (isInProgress ? '⚡' : '⏳');
+            }
+        });
+    }
+
+    // Update overall subject progress bar
+    if (parentSubject) {
+        const subjPct = calculateSubjectActualPct(parentSubject, coveredTopicsMap);
+        const subjIndex = cachedCurriculum.indexOf(parentSubject);
+        if (subjIndex !== -1) {
+            const sText = document.getElementById(`subjPctText_${subjIndex}`);
+            const sBar = document.getElementById(`subjBar_${subjIndex}`);
+            if (sText) sText.textContent = subjPct + '%';
+            if (sBar) sBar.style.width = subjPct + '%';
+        }
+    }
 }
 
 function toggleInlineCurriculum(drawerId, btnId) {
@@ -547,33 +794,63 @@ function renderModalTabContent() {
 
         const unitsListHtml = cur.units.map(u => {
             const uTopics = u.topics || [];
-            let coveredInUnit = 0;
+            const unitStats = calculateUnitStats(u, coveredTopicsMap);
+
             const topicsHtml = uTopics.length > 0 ? uTopics.map(t => {
-                const isCovered = coveredTopicsMap.has(t.topicName.toLowerCase());
-                if (isCovered) coveredInUnit++;
-                const weekNum = coveredTopicsMap.get(t.topicName.toLowerCase());
+                const prog = getTopicProgress(t.topicId);
+                let isCovered = false;
+                let isInProgress = false;
+                let topicPct = 0;
+                let weekCovered = null;
+
+                if (prog) {
+                    topicPct = prog.progressPercentage != null ? prog.progressPercentage : (prog.completed ? 100 : 0);
+                    isCovered = topicPct >= 100 || prog.status === 'Completed';
+                    isInProgress = !isCovered && (topicPct > 0 || prog.status === 'In_Progress');
+                } else if (coveredTopicsMap.has(t.topicName.toLowerCase())) {
+                    isCovered = true;
+                    topicPct = 100;
+                    weekCovered = coveredTopicsMap.get(t.topicName.toLowerCase());
+                }
+
+                const safeTopicName = t.topicName.replace(/'/g, "\\'");
+                const statusClass = isCovered ? 'completed' : (isInProgress ? 'in-progress' : 'pending');
+                const statusIcon = isCovered ? '✓' : (isInProgress ? '⚡' : '⏳');
+
                 return `
                     <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 12px; font-size: 13px;">
                         <span style="color: var(--text-primary);">📖 ${t.topicName}</span>
-                        ${isCovered ? 
-                            `<span class="topic-pill covered">✓ Covered in Week ${weekNum}</span>` : 
-                            `<span class="topic-pill pending">⏳ Upcoming</span>`}
+                        <button type="button" class="topic-interactive-pill ${statusClass}" 
+                                id="modalTopicPill_${t.topicId}"
+                                onclick="toggleStudentTopicProgress(${t.topicId}, '${safeTopicName}', ${u.unitId})"
+                                title="Click to toggle status">
+                            <span class="topic-check-icon">${statusIcon}</span>
+                            <span>${isCovered ? (weekCovered ? `Covered (Wk ${weekCovered})` : 'Completed') : (isInProgress ? 'In Progress' : 'Pending')}</span>
+                            ${topicPct > 0 ? `<span class="topic-pct-tag">${topicPct}%</span>` : ''}
+                        </button>
                     </div>
                 `;
             }).join('') : '<span style="color: var(--text-secondary); font-size: 12px; font-style: italic;">No topics defined under this unit.</span>';
 
-            const unitPct = uTopics.length > 0 ? Math.round((coveredInUnit / uTopics.length) * 100) : 0;
-
             return `
-                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px;" id="modalUnitBlock_${u.unitId}">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
                         <span style="font-weight: 700; font-size: 15px; color: var(--text-primary);">📁 Unit: ${u.unitName}</span>
-                        <span style="font-size: 12px; font-weight: 600; color: #10b981;">${coveredInUnit} / ${uTopics.length} Covered (${unitPct}%)</span>
+                        <div class="unit-fluid-stats">
+                            <span class="unit-fluid-badge">
+                                <span class="fluid-droplet">💧</span>
+                                <strong id="modalUnitPctText_${u.unitId}">${unitStats.pct}%</strong>
+                            </span>
+                            <span class="unit-topics-count" id="modalUnitTopicsCount_${u.unitId}">${unitStats.completedCount} / ${unitStats.totalCount} Covered</span>
+                        </div>
                     </div>
-                    <div style="background: rgba(255, 255, 255, 0.05); border-radius: 6px; height: 5px; width: 100%; margin-bottom: 10px; overflow: hidden;">
-                        <div style="background: #10b981; width: ${unitPct}%; height: 100%; border-radius: 6px;"></div>
+
+                    <!-- Thin Cylindrical Line with Dynamic Liquid Fluid inside Modal -->
+                    <div class="unit-cylinder-tube" title="Unit Progress: ${unitStats.pct}%">
+                        <div class="unit-cylinder-fluid" id="modalUnitFluidBar_${u.unitId}" style="width: ${unitStats.pct}%;"></div>
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 6px;">
+
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
                         ${topicsHtml}
                     </div>
                 </div>

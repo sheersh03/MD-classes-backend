@@ -364,77 +364,427 @@ function toggleTopicChip(topicName, btn) {
     input.value = currentTopics.join(', ');
 }
 
+let cachedTeacherTopicProgress = [];
+let cachedTeacherWeeklySyllabus = [];
+let activeCurriculumClass = 'Class 10';
+let activeUnitStatusFilter = 'ALL';
+
+function onCurriculumClassChanged() {
+    const sel = document.getElementById('curriculumClassSelect');
+    if (sel) {
+        activeCurriculumClass = sel.value;
+    }
+    loadCurriculum();
+}
+
+function setCurriculumUnitFilter(filter) {
+    activeUnitStatusFilter = filter;
+    ['ALL', 'IN_PROGRESS', 'COMPLETED', 'NOT_STARTED'].forEach(f => {
+        const btnId = f === 'ALL' ? 'filterUnitAll' :
+                      f === 'IN_PROGRESS' ? 'filterUnitInProgress' :
+                      f === 'COMPLETED' ? 'filterUnitCompleted' : 'filterUnitNotStarted';
+        const b = document.getElementById(btnId);
+        if (b) {
+            if (f === filter) b.classList.add('active');
+            else b.classList.remove('active');
+        }
+    });
+    renderCurriculumTree();
+}
+
 async function loadCurriculum() {
     const container = document.getElementById('curriculumTreeView');
     if (!container) return;
 
-    container.innerHTML = '<div class="loading-spinner">Loading curriculum hierarchy...</div>';
+    container.innerHTML = '<div class="loading-spinner">Loading curriculum and syllabus status...</div>';
 
     try {
-        const response = await fetch('/apiv1/subjects', {
-            headers: { 'Authorization': 'Bearer ' + token }
-        });
-        if (!response.ok) throw new Error('Failed to load curriculum');
-        cachedSubjectsList = await response.json();
+        const [subRes, progRes, syllRes] = await Promise.allSettled([
+            fetch('/apiv1/subjects', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            }),
+            fetch('/apiv1/student-topic-progress', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            }),
+            fetch(`/apiv1/syllabus-progress?studentClass=${encodeURIComponent(activeCurriculumClass)}`, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            })
+        ]);
 
-        if (cachedSubjectsList.length === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 30px; color: var(--text-secondary); border: 1px dashed var(--border-color); border-radius: 12px;">
-                    <p style="margin-bottom: 12px; font-size: 15px;">No subjects defined yet in the database.</p>
-                    <button type="button" class="action-btn" onclick="openAddSubjectModal()" style="font-size: 13px; padding: 8px 16px;">Create First Subject</button>
-                </div>
-            `;
-            return;
+        if (subRes.status === 'fulfilled' && subRes.value.ok) {
+            cachedSubjectsList = await subRes.value.json();
+        } else {
+            throw new Error('Failed to load curriculum subjects');
         }
 
-        container.innerHTML = cachedSubjectsList.map(s => {
-            const unitsHtml = (s.units && s.units.length > 0) ? s.units.map(u => {
-                const topicsHtml = (u.topics && u.topics.length > 0) ? u.topics.map(t => `
-                    <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); border-radius: 16px; padding: 4px 10px; font-size: 12px;">
-                        <span>📖 ${t.topicName}</span>
-                        <button type="button" onclick="deleteTopic(${t.topicId})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0 2px; font-size: 14px; line-height: 1;" title="Delete Topic">&times;</button>
-                    </div>
-                `).join('') : '<span style="color: var(--text-secondary); font-size: 12px; font-style: italic;">No topics added to this unit yet.</span>';
+        if (progRes.status === 'fulfilled' && progRes.value.ok) {
+            cachedTeacherTopicProgress = await progRes.value.json();
+        } else {
+            cachedTeacherTopicProgress = [];
+        }
 
+        if (syllRes.status === 'fulfilled' && syllRes.value.ok) {
+            cachedTeacherWeeklySyllabus = await syllRes.value.json();
+        } else {
+            cachedTeacherWeeklySyllabus = [];
+        }
+
+        renderCurriculumTree();
+    } catch (e) {
+        container.innerHTML = `<div style="color: #ef4444; padding: 15px;">Error loading curriculum: ${e.message}</div>`;
+    }
+}
+
+function renderCurriculumTree() {
+    const container = document.getElementById('curriculumTreeView');
+    if (!container) return;
+
+    if (!cachedSubjectsList || cachedSubjectsList.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 30px; color: var(--text-secondary); border: 1px dashed var(--border-color); border-radius: 12px;">
+                <p style="margin-bottom: 12px; font-size: 15px;">No subjects defined yet in the database.</p>
+                <button type="button" class="action-btn" onclick="openAddSubjectModal()" style="font-size: 13px; padding: 8px 16px;">Create First Subject</button>
+            </div>
+        `;
+        return;
+    }
+
+    // Build set of covered topics from weekly progress records
+    const coveredWeeklyTopicsSet = new Set();
+    cachedTeacherWeeklySyllabus.forEach(wp => {
+        if (wp.topicsCovered) {
+            wp.topicsCovered.split(',').forEach(item => {
+                const clean = item.trim().toLowerCase();
+                if (clean) coveredWeeklyTopicsSet.add(clean);
+            });
+        }
+    });
+
+    // Compute curriculum-wide syllabus metrics
+    let totalUnitsCount = 0;
+    let completedUnitsCount = 0;
+    let inProgressUnitsCount = 0;
+    let notStartedUnitsCount = 0;
+    let totalTopicsCount = 0;
+    let completedTopicsCount = 0;
+    let totalProgressSum = 0;
+
+    cachedSubjectsList.forEach(s => {
+        const units = s.units || [];
+        totalUnitsCount += units.length;
+        units.forEach(u => {
+            const uTopics = u.topics || [];
+            totalTopicsCount += uTopics.length;
+            let uSum = 0;
+            let uDone = 0;
+
+            uTopics.forEach(t => {
+                const match = cachedTeacherTopicProgress.find(p => p.topicId === t.topicId || (p.topic && p.topic.topicId === t.topicId));
+                let pct = 0;
+                if (match) {
+                    pct = match.progressPercentage != null ? match.progressPercentage : (match.completed ? 100 : 0);
+                } else if (coveredWeeklyTopicsSet.has(t.topicName.trim().toLowerCase())) {
+                    pct = 100;
+                }
+                uSum += pct;
+                totalProgressSum += pct;
+                if (pct >= 100) {
+                    uDone++;
+                    completedTopicsCount++;
+                }
+            });
+
+            const uPct = uTopics.length > 0 ? Math.round(uSum / uTopics.length) : 0;
+            if (uPct >= 100 || (uDone === uTopics.length && uTopics.length > 0)) {
+                completedUnitsCount++;
+            } else if (uPct > 0) {
+                inProgressUnitsCount++;
+            } else {
+                notStartedUnitsCount++;
+            }
+        });
+    });
+
+    // Render live Curriculum Syllabus Summary Banner
+    const banner = document.getElementById('curriculumSummaryBanner');
+    if (banner) {
+        const overallPct = totalTopicsCount > 0 ? Math.round(totalProgressSum / totalTopicsCount) : 0;
+        banner.innerHTML = `
+            <div class="curriculum-summary-item">
+                <span class="curriculum-summary-label">Target Class</span>
+                <span class="curriculum-summary-value" style="color: var(--accent-primary); font-size: 16px;">🎓 ${activeCurriculumClass}</span>
+            </div>
+            <div class="curriculum-summary-item">
+                <span class="curriculum-summary-label">Overall Syllabus Coverage</span>
+                <span class="curriculum-summary-value" style="color: #34d399; font-size: 16px;">💧 ${overallPct}% Complete</span>
+            </div>
+            <div class="curriculum-summary-item">
+                <span class="curriculum-summary-label">Units Breakdown</span>
+                <span class="curriculum-summary-value" style="font-size: 13px; font-weight: 600; line-height: 1.4;">
+                    <span style="color: #34d399;">✓ ${completedUnitsCount} Completed</span> • 
+                    <span style="color: #38bdf8;">⏳ ${inProgressUnitsCount} In Progress</span> • 
+                    <span style="color: #94a3b8;">○ ${notStartedUnitsCount} Pending</span>
+                </span>
+            </div>
+            <div class="curriculum-summary-item">
+                <span class="curriculum-summary-label">Curricular Topics</span>
+                <span class="curriculum-summary-value" style="font-size: 16px;">${completedTopicsCount} / ${totalTopicsCount} Topics</span>
+            </div>
+        `;
+    }
+
+    // Render Subjects and Units hierarchy
+    container.innerHTML = cachedSubjectsList.map(s => {
+        const units = s.units || [];
+        const filteredUnits = units.filter(u => {
+            if (activeUnitStatusFilter === 'ALL') return true;
+            const uTopics = u.topics || [];
+            let uSum = 0;
+            let uDone = 0;
+            uTopics.forEach(t => {
+                const match = cachedTeacherTopicProgress.find(p => p.topicId === t.topicId || (p.topic && p.topic.topicId === t.topicId));
+                let pct = match ? (match.progressPercentage != null ? match.progressPercentage : (match.completed ? 100 : 0)) : (coveredWeeklyTopicsSet.has(t.topicName.trim().toLowerCase()) ? 100 : 0);
+                uSum += pct;
+                if (pct >= 100) uDone++;
+            });
+            const uPct = uTopics.length > 0 ? Math.round(uSum / uTopics.length) : 0;
+            if (activeUnitStatusFilter === 'COMPLETED') return uPct >= 100 || (uDone === uTopics.length && uTopics.length > 0);
+            if (activeUnitStatusFilter === 'IN_PROGRESS') return uPct > 0 && uPct < 100;
+            if (activeUnitStatusFilter === 'NOT_STARTED') return uPct === 0;
+            return true;
+        });
+
+        const unitsHtml = (units.length > 0) ? (
+            filteredUnits.length > 0 ? filteredUnits.map(u => {
+                const uTopics = u.topics || [];
+                let unitProgressSum = 0;
+                let completedCount = 0;
+                let inProgressCount = 0;
+
+                const topicsHtml = (uTopics.length > 0) ? uTopics.map(t => {
+                    const match = cachedTeacherTopicProgress.find(p => p.topicId === t.topicId || (p.topic && p.topic.topicId === t.topicId));
+                    let tPct = 0;
+                    let tStatus = 'Not_Started';
+
+                    if (match) {
+                        tPct = match.progressPercentage != null ? match.progressPercentage : (match.completed ? 100 : 0);
+                        tStatus = match.status || (tPct >= 100 ? 'Completed' : (tPct > 0 ? 'In_Progress' : 'Not_Started'));
+                    } else if (coveredWeeklyTopicsSet.has(t.topicName.trim().toLowerCase())) {
+                        tPct = 100;
+                        tStatus = 'Completed';
+                    }
+
+                    unitProgressSum += tPct;
+                    if (tPct >= 100 || tStatus === 'Completed') {
+                        completedCount++;
+                    } else if (tPct > 0) {
+                        inProgressCount++;
+                    }
+
+                    const isDone = tPct >= 100 || tStatus === 'Completed';
+                    const isInProg = !isDone && tPct > 0;
+                    const safeTopicName = t.topicName.replace(/'/g, "\\'");
+                    const safeSubName = s.subjectName.replace(/'/g, "\\'");
+
+                    let chipClass = 'topic-syllabus-chip';
+                    let statusIcon = '○';
+                    let statusColor = '#94a3b8';
+                    let nextStatusAction = '100% Complete';
+
+                    if (isDone) {
+                        chipClass += ' is-completed';
+                        statusIcon = '✓';
+                        statusColor = '#34d399';
+                        nextStatusAction = 'Reset to 0%';
+                    } else if (isInProg) {
+                        chipClass += ' is-inprogress';
+                        statusIcon = '⏳';
+                        statusColor = '#38bdf8';
+                        nextStatusAction = 'Complete (100%)';
+                    }
+
+                    return `
+                        <div class="${chipClass}">
+                            <span style="font-weight: 600; color: ${statusColor};">${statusIcon}</span>
+                            <span style="color: var(--text-primary); font-weight: 500;">${t.topicName}</span>
+                            <span style="font-size: 11px; font-weight: 700; color: ${statusColor}; background: rgba(255, 255, 255, 0.05); padding: 2px 6px; border-radius: 6px;">${tPct}%</span>
+                            
+                            <button type="button" class="topic-status-toggle-btn" onclick="cycleTopicProgress(${t.topicId}, ${tPct})" title="Click to cycle syllabus status (${nextStatusAction})">
+                                ${isDone ? 'Undo' : (isInProg ? 'Done' : 'Start')}
+                            </button>
+                            
+                            <button type="button" onclick="quickFillWeeklyTopic('${safeTopicName}', '${safeSubName}', ${u.unitId})" style="background: none; border: none; color: #c4b5fd; cursor: pointer; padding: 0 3px; font-size: 12px;" title="Insert into Weekly Progress Form">📝</button>
+                            <button type="button" onclick="deleteTopic(${t.topicId})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0 3px; font-size: 14px; line-height: 1;" title="Delete Topic">&times;</button>
+                        </div>
+                    `;
+                }).join('') : '<span style="color: var(--text-secondary); font-size: 12px; font-style: italic;">No topics added to this unit yet.</span>';
+
+                const unitPct = uTopics.length > 0 ? Math.round(unitProgressSum / uTopics.length) : 0;
                 const safeUnitName = u.unitName.replace(/'/g, "\\'");
+
+                // Determine unit syllabus status badge
+                let unitStatusBadge = '';
+                if (unitPct >= 100 || (completedCount === uTopics.length && uTopics.length > 0)) {
+                    unitStatusBadge = '<span class="syllabus-status-badge status-completed">✓ Completed</span>';
+                } else if (unitPct > 0) {
+                    unitStatusBadge = `<span class="syllabus-status-badge status-inprogress">⏳ In Progress (${unitPct}%)</span>`;
+                } else {
+                    unitStatusBadge = '<span class="syllabus-status-badge status-notstarted">○ Not Started</span>';
+                }
+
                 return `
-                    <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; margin-top: 8px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
-                            <span style="font-weight: 600; font-size: 14px; color: var(--text-primary);">📁 Unit: ${u.unitName}</span>
-                            <div style="display: flex; gap: 6px;">
-                                <button type="button" onclick="openAddTopicModal(${u.unitId}, '${safeUnitName}')" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">+ Add Topic</button>
-                                <button type="button" onclick="deleteUnit(${u.unitId})" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">Delete</button>
+                    <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; margin-top: 10px; transition: border-color 0.2s;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                <span style="font-weight: 700; font-size: 14px; color: var(--text-primary);">📁 Unit: ${u.unitName}</span>
+                                ${unitStatusBadge}
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <div class="unit-fluid-stats">
+                                    <span class="unit-fluid-badge">
+                                        <span class="fluid-droplet">💧</span>
+                                        <strong>${unitPct}%</strong>
+                                    </span>
+                                    <span class="unit-topics-count">${completedCount} / ${uTopics.length} Topics</span>
+                                </div>
+                                <div style="display: flex; gap: 6px;">
+                                    <button type="button" class="unit-action-btn btn-complete" onclick="markUnitProgress(${u.unitId}, 100)" title="Mark entire unit as Completed (100%)">⚡ Complete</button>
+                                    <button type="button" class="unit-action-btn btn-reset" onclick="markUnitProgress(${u.unitId}, 0)" title="Reset unit to Not Started (0%)">🔄 Reset</button>
+                                    <button type="button" class="unit-action-btn btn-add" onclick="openAddTopicModal(${u.unitId}, '${safeUnitName}')">+ Topic</button>
+                                    <button type="button" class="unit-action-btn btn-del" onclick="deleteUnit(${u.unitId})">Delete</button>
+                                </div>
                             </div>
                         </div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;">
+
+                        <!-- Thin Cylindrical Line with Dynamic Liquid Fluid -->
+                        <div class="unit-cylinder-tube" title="Unit Progress: ${unitPct}%">
+                            <div class="unit-cylinder-fluid" style="width: ${unitPct}%;"></div>
+                        </div>
+
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
                             ${topicsHtml}
                         </div>
                     </div>
                 `;
-            }).join('') : '<p style="color: var(--text-secondary); font-size: 13px; font-style: italic; margin-top: 6px;">No units created yet for this subject.</p>';
+            }).join('') : `<p style="color: var(--text-secondary); font-size: 13px; font-style: italic; margin-top: 8px; padding: 10px;">No units match filter "${activeUnitStatusFilter}".</p>`
+        ) : '<p style="color: var(--text-secondary); font-size: 13px; font-style: italic; margin-top: 8px;">No units created yet for this subject.</p>';
 
-            const safeSubjectName = s.subjectName.replace(/'/g, "\\'");
-            return `
-                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 14px; padding: 16px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
-                        <div>
-                            <span style="font-size: 16px; font-weight: 700; color: var(--accent-primary);">📚 ${s.subjectName}</span>
-                            <span style="font-size: 12px; color: var(--text-secondary); margin-left: 8px;">(${s.units ? s.units.length : 0} Units)</span>
-                        </div>
-                        <div style="display: flex; gap: 8px;">
-                            <button type="button" onclick="openAddUnitModal(${s.subjectId}, '${safeSubjectName}')" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;">+ Add Unit</button>
-                            <button type="button" onclick="deleteSubject(${s.subjectId})" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;">Delete</button>
-                        </div>
-                    </div>
+        const safeSubjectName = s.subjectName.replace(/'/g, "\\'");
+        return `
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 14px; padding: 18px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
                     <div>
-                        ${unitsHtml}
+                        <span style="font-size: 16px; font-weight: 700; color: var(--accent-primary);">📚 ${s.subjectName}</span>
+                        <span style="font-size: 12px; color: var(--text-secondary); margin-left: 8px;">(${units.length} Units)</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" onclick="openAddUnitModal(${s.subjectId}, '${safeSubjectName}')" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">+ Add Unit</button>
+                        <button type="button" onclick="deleteSubject(${s.subjectId})" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">Delete</button>
                     </div>
                 </div>
-            `;
-        }).join('');
+                <div>
+                    ${unitsHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function markUnitProgress(unitId, percentage) {
+    try {
+        const url = `/apiv1/student-topic-progress/unit/${unitId}?percentage=${percentage}&studentClass=${encodeURIComponent(activeCurriculumClass)}`;
+        console.log(`>>> [API REQUEST] PUT ${url}`);
+        const res = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || 'Failed to update unit syllabus progress');
+        }
+
+        showToast(percentage >= 100 ? 'Unit marked as Completed! Syllabus status updated.' : 'Unit reset to 0% (Not Started).', true);
+        loadCurriculum();
     } catch (e) {
-        container.innerHTML = `<div style="color: #ef4444; padding: 15px;">Error loading curriculum: ${e.message}</div>`;
+        showToast(e.message, false);
     }
+}
+
+async function cycleTopicProgress(topicId, currentPct) {
+    let nextPct = 100;
+    let nextStatus = 'Completed';
+    if (currentPct >= 100) {
+        nextPct = 0;
+        nextStatus = 'Not_Started';
+    } else if (currentPct > 0) {
+        nextPct = 100;
+        nextStatus = 'Completed';
+    } else {
+        nextPct = 100;
+        nextStatus = 'Completed';
+    }
+
+    try {
+        const url = `/apiv1/student-topic-progress?studentClass=${encodeURIComponent(activeCurriculumClass)}`;
+        console.log(`>>> [API REQUEST] PUT ${url} (topicId=${topicId}, pct=${nextPct})`);
+        const res = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({
+                topicId: topicId,
+                progressPercentage: nextPct,
+                status: nextStatus
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || 'Failed to update topic syllabus progress');
+        }
+
+        showToast(nextPct >= 100 ? 'Topic marked as Completed!' : 'Topic reset to Not Started.', true);
+        loadCurriculum();
+    } catch (e) {
+        showToast(e.message, false);
+    }
+}
+
+function quickFillWeeklyTopic(topicName, subjectName, unitId) {
+    const classSel = document.getElementById('progClass');
+    const subSel = document.getElementById('progSubject');
+    const topicsInput = document.getElementById('progTopics');
+    
+    if (classSel) classSel.value = activeCurriculumClass;
+    if (subSel) {
+        subSel.value = subjectName;
+        onProgSubjectChanged();
+        const unitSel = document.getElementById('progUnit');
+        if (unitSel && unitId) {
+            unitSel.value = unitId;
+            onProgUnitChanged();
+        }
+    }
+    
+    if (topicsInput) {
+        let current = topicsInput.value ? topicsInput.value.split(',').map(s => s.trim()).filter(Boolean) : [];
+        if (!current.includes(topicName)) {
+            current.push(topicName);
+            topicsInput.value = current.join(', ');
+        }
+    }
+
+    // Scroll to the update weekly progress form smoothly
+    const formCard = document.getElementById('updateSyllabusForm');
+    if (formCard) {
+        formCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    showToast(`Added "${topicName}" to Weekly Progress form!`, true);
 }
 
 function openAddSubjectModal() {

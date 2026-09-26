@@ -430,3 +430,304 @@ tr:hover td {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
 }
+
+/* ==========================================================================
+   Thin Cylindrical Fluid Progress Line & Unit Progress Styles
+   ========================================================================== */
+.unit-fluid-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.unit-fluid-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.35);
+    color: #c4b5fd;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.2);
+}
+
+.fluid-droplet {
+    display: inline-block;
+    font-size: 12px;
+    animation: dropletPulseTeacher 2s ease-in-out infinite;
+}
+
+@keyframes dropletPulseTeacher {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px #c4b5fd); }
+    50% { transform: scale(1.2); filter: drop-shadow(0 0 6px #8b5cf6); }
+}
+
+.unit-topics-count {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* Thin Cylindrical Tube Container */
+.unit-cylinder-tube {
+    position: relative;
+    height: 8px;
+    background: rgba(10, 15, 26, 0.85);
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8), 0 1px 1px rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    margin: 8px 0 10px 0;
+    display: flex;
+    align-items: center;
+}
+
+/* Glass Reflection Highlight on top of cylinder */
+.unit-cylinder-tube::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border-radius: 999px 999px 0 0;
+    pointer-events: none;
+    z-index: 3;
+}
+
+/* The Liquid Fluid inside Cylinder */
+.unit-cylinder-fluid {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #8b5cf6 0%, #6366f1 40%, #06b6d4 75%, #10b981 100%);
+    background-size: 200% 200%;
+    animation: fluidWaveFlow 3.5s ease-in-out infinite;
+    transition: width 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    box-shadow: 0 0 10px rgba(139, 92, 246, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.8), inset 0 -1px 2px rgba(0, 0, 0, 0.35);
+    min-width: 0%;
+}
+
+@keyframes fluidWaveFlow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Luminous meniscus bubble at fluid leading edge */
+.unit-cylinder-fluid::after {
+    content: '';
+    position: absolute;
+    right: 1px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 0 6px 2px rgba(255, 255, 255, 0.9), 0 0 10px 4px rgba(139, 92, 246, 0.7);
+    opacity: 0.95;
+    transition: opacity 0.3s;
+}
+
+.unit-cylinder-fluid[style*="width: 0%"]::after,
+.unit-cylinder-fluid[style*="width: 0.0%"]::after {
+    display: none;
+}
+
+/* Curriculum Management Syllabus Status & Header Styles */
+.curriculum-summary-banner {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 14px 18px;
+}
+
+.curriculum-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.curriculum-summary-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+}
+
+.curriculum-summary-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Syllabus Status Badges */
+.syllabus-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+}
+
+.syllabus-status-badge.status-completed {
+    background: rgba(16, 185, 129, 0.16);
+    border: 1px solid rgba(16, 185, 129, 0.45);
+    color: #34d399;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+}
+
+.syllabus-status-badge.status-inprogress {
+    background: rgba(6, 182, 212, 0.16);
+    border: 1px solid rgba(6, 182, 212, 0.45);
+    color: #38bdf8;
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+}
+
+.syllabus-status-badge.status-notstarted {
+    background: rgba(148, 163, 184, 0.12);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: #94a3b8;
+}
+
+/* Interactive Topic Syllabus Pill */
+.topic-syllabus-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 6px 12px;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.topic-syllabus-chip:hover {
+    border-color: rgba(139, 92, 246, 0.4);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.topic-syllabus-chip.is-completed {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.topic-syllabus-chip.is-inprogress {
+    background: rgba(6, 182, 212, 0.08);
+    border-color: rgba(6, 182, 212, 0.35);
+}
+
+/* Topic Status Mini Button / Dropdown */
+.topic-status-toggle-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-primary);
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.topic-status-toggle-btn:hover {
+    background: var(--accent-primary);
+    color: white;
+}
+
+/* Unit Action Buttons */
+.unit-action-btn {
+    border: none;
+    border-radius: 6px;
+    padding: 4px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+
+.unit-action-btn.btn-complete {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #34d399;
+}
+.unit-action-btn.btn-complete:hover {
+    background: #10b981;
+    color: #ffffff;
+}
+
+.unit-action-btn.btn-reset {
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #fbbf24;
+}
+.unit-action-btn.btn-reset:hover {
+    background: #f59e0b;
+    color: #ffffff;
+}
+
+.unit-action-btn.btn-add {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    color: #818cf8;
+}
+.unit-action-btn.btn-add:hover {
+    background: #6366f1;
+    color: #ffffff;
+}
+
+.unit-action-btn.btn-del {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: #f87171;
+}
+.unit-action-btn.btn-del:hover {
+    background: #ef4444;
+    color: #ffffff;
+}
+
+/* Filter Buttons */
+.curriculum-filter-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.curriculum-filter-btn:hover {
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.curriculum-filter-btn.active {
+    background: var(--accent-primary);
+    color: white;
+    border-color: var(--accent-primary);
+}
+
