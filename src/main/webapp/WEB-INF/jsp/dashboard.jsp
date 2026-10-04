@@ -474,6 +474,162 @@
         </div>
     </div>
 
+    <!-- Manage Quiz Modal for Teacher / Admin -->
+    <div id="manageQuizModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="max-width: 750px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header" style="margin-bottom: 15px;">
+                <div>
+                    <h3 class="modal-title" id="quizModalTitle">Manage Topic Quiz</h3>
+                    <p id="quizModalSubtitle" style="font-size: 13px; color: var(--text-secondary); margin-top: 3px;">Topic Quiz Questions</p>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeManageQuizModal()">&times;</button>
+            </div>
+
+            <!-- Modal Tabs: Questions vs Student Attempts -->
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                <button type="button" class="modal-tab-btn active" id="tabQuizQuestionsBtn" onclick="switchQuizModalTab('questions')">📋 Questions</button>
+                <button type="button" class="modal-tab-btn" id="tabQuizAttemptsBtn" onclick="switchQuizModalTab('attempts')">📊 Student Attempts</button>
+            </div>
+
+            <!-- Quiz Questions Tab View -->
+            <div id="quizQuestionsTabView" style="overflow-y: auto; padding-right: 6px; flex-grow: 1; display: flex; flex-direction: column; gap: 20px;">
+                <!-- Existing Questions Section -->
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="font-size: 15px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                            <span>📋 Existing Questions</span>
+                            <span id="quizQuestionsCountBadge" style="background: rgba(139, 92, 246, 0.2); color: #c4b5fd; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600;">0 Questions</span>
+                        </h4>
+                    </div>
+                    <div id="quizQuestionsList" style="display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; padding: 4px;">
+                        <div style="text-align: center; color: var(--text-secondary); padding: 15px; font-size: 13px;">Loading questions...</div>
+                    </div>
+                </div>
+
+                <!-- Add Question Form Section -->
+                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 14px; padding: 18px;">
+                    <h4 style="font-size: 15px; font-weight: 700; color: var(--accent-primary); margin-bottom: 14px; display: flex; align-items: center; gap: 6px;">
+                        <span>✍️ Add New Question</span>
+                    </h4>
+                    <form id="addQuizQuestionForm">
+                        <input type="hidden" id="activeQuizId">
+                        
+                        <div class="form-group" style="margin-bottom: 14px;">
+                            <label class="form-label" for="newQuestionText">Question Text *</label>
+                            <textarea id="newQuestionText" class="form-input" rows="2" placeholder="Write question statement here..." required style="resize: vertical;"></textarea>
+                        </div>
+
+                        <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                            <div class="form-group">
+                                <label class="form-label" for="newOptionA">Option A *</label>
+                                <input type="text" id="newOptionA" class="form-input" placeholder="e.g. Option A text" required autocomplete="off">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="newOptionB">Option B *</label>
+                                <input type="text" id="newOptionB" class="form-input" placeholder="e.g. Option B text" required autocomplete="off">
+                            </div>
+                        </div>
+
+                        <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                            <div class="form-group">
+                                <label class="form-label" for="newOptionC">Option C (Optional)</label>
+                                <input type="text" id="newOptionC" class="form-input" placeholder="e.g. Option C text" autocomplete="off">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="newOptionD">Option D (Optional)</label>
+                                <input type="text" id="newOptionD" class="form-input" placeholder="e.g. Option D text" autocomplete="off">
+                            </div>
+                        </div>
+
+                        <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                            <div class="form-group">
+                                <label class="form-label" for="newCorrectOption">Correct Option *</label>
+                                <select id="newCorrectOption" class="form-input" required>
+                                    <option value="A">Option A</option>
+                                    <option value="B">Option B</option>
+                                    <option value="C">Option C</option>
+                                    <option value="D">Option D</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="newQuestionMarks">Marks</label>
+                                <input type="number" id="newQuestionMarks" class="form-input" min="1" value="1" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label class="form-label" for="newQuestionExplanation">Explanation (Optional)</label>
+                            <input type="text" id="newQuestionExplanation" class="form-input" placeholder="Brief explanation for the answer" autocomplete="off">
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                            <button type="submit" class="submit-btn" id="addQuestionSubmitBtn" style="padding: 10px 22px; font-size: 13px;">
+                                + Add Question
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Quiz Attempts Tab View -->
+            <div id="quizAttemptsTabView" style="display: none; overflow-y: auto; padding-right: 6px; flex-grow: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h4 style="font-size: 15px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                        <span>🎓 Student Submissions</span>
+                        <span id="quizAttemptsCountBadge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600;">0 Submissions</span>
+                    </h4>
+                    <button type="button" class="action-btn-mini" onclick="loadQuizAttemptsForActiveQuiz()" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c4b5fd; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">
+                        🔄 Refresh
+                    </button>
+                </div>
+                <div class="table-container" style="overflow-x: auto;">
+                    <table class="student-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-size: 13px;">
+                                <th style="padding: 10px 12px;">ID</th>
+                                <th style="padding: 10px 12px;">Student Name</th>
+                                <th style="padding: 10px 12px;">Score</th>
+                                <th style="padding: 10px 12px;">Percentage</th>
+                                <th style="padding: 10px 12px;">Submitted</th>
+                                <th style="padding: 10px 12px; text-align: right;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="quizAttemptsListTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 20px;">
+                                    Loading student attempts...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="margin-top: 15px; padding-top: 10px; border-top: 1px solid var(--border-color);">
+                <button type="button" class="secondary-btn" onclick="closeManageQuizModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Review Student Attempt Modal (Teacher / Admin) -->
+    <div id="reviewStudentAttemptModal" class="modal-overlay" style="display: none; z-index: 1200; position: fixed; left: 0; top: 0; width: 100%; height: 100%; background: rgba(8, 9, 13, 0.88); backdrop-filter: blur(14px); align-items: center; justify-content: center;">
+        <div class="modal-card" style="background: rgba(20, 24, 38, 0.98); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 20px; width: 92%; max-width: 720px; max-height: 90vh; display: flex; flex-direction: column; padding: 24px; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);">
+            <div class="modal-header" style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <div>
+                    <h3 class="modal-title" id="reviewAttemptModalTitle" style="font-size: 20px;">Student Submission Report</h3>
+                    <p id="reviewAttemptModalSubtitle" style="font-size: 13px; color: var(--text-secondary); margin-top: 3px;">Submission details</p>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeReviewStudentAttemptModal()">&times;</button>
+            </div>
+            <div id="reviewStudentAttemptModalBody" style="overflow-y: auto; flex-grow: 1; padding-right: 6px;">
+                <div class="loading-spinner">Loading report...</div>
+            </div>
+            <div class="modal-footer" style="margin-top: 15px; padding-top: 10px; border-top: 1px solid var(--border-color);">
+                <button type="button" class="secondary-btn" onclick="closeReviewStudentAttemptModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="toast"></div>
 
     <script src="/js/dashboard.js"></script>

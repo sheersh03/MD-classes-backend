@@ -389,12 +389,16 @@ async function loadCurriculum() {
 
         container.innerHTML = cachedSubjectsList.map(s => {
             const unitsHtml = (s.units && s.units.length > 0) ? s.units.map(u => {
-                const topicsHtml = (u.topics && u.topics.length > 0) ? u.topics.map(t => `
-                    <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); border-radius: 16px; padding: 4px 10px; font-size: 12px;">
-                        <span>📖 ${t.topicName}</span>
-                        <button type="button" onclick="deleteTopic(${t.topicId})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0 2px; font-size: 14px; line-height: 1;" title="Delete Topic">&times;</button>
-                    </div>
-                `).join('') : '<span style="color: var(--text-secondary); font-size: 12px; font-style: italic;">No topics added to this unit yet.</span>';
+                const topicsHtml = (u.topics && u.topics.length > 0) ? u.topics.map(t => {
+                    const safeTopicName = t.topicName.replace(/'/g, "\\'");
+                    return `
+                        <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); border-radius: 16px; padding: 4px 10px; font-size: 12px;">
+                            <span>📖 ${t.topicName}</span>
+                            <button type="button" onclick="openManageQuizModal(${t.topicId}, '${safeTopicName}')" style="background: rgba(139, 92, 246, 0.18); border: 1px solid rgba(139, 92, 246, 0.35); color: #c4b5fd; padding: 1px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; cursor: pointer;" title="Manage Topic Quiz">📝 Quiz</button>
+                            <button type="button" onclick="deleteTopic(${t.topicId})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0 2px; font-size: 14px; line-height: 1;" title="Delete Topic">&times;</button>
+                        </div>
+                    `;
+                }).join('') : '<span style="color: var(--text-secondary); font-size: 12px; font-style: italic;">No topics added to this unit yet.</span>';
 
                 const safeUnitName = u.unitName.replace(/'/g, "\\'");
                 return `
@@ -515,7 +519,10 @@ async function deleteUnit(id) {
             method: 'DELETE',
             headers: { 'Authorization': 'Bearer ' + token }
         });
-        if (!res.ok) throw new Error('Failed to delete unit');
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.message || `Failed to delete unit (Status ${res.status})`);
+        }
         showToast('Unit deleted successfully', true);
         loadSubjectDropdowns();
         loadCurriculum();
@@ -751,6 +758,7 @@ if (addTForm) {
 
 function logout() {
     localStorage.clear();
+    document.cookie = "accessToken=; path=/; max-age=0; SameSite=Lax";
     window.location.href = '/login';
 }
 
@@ -959,4 +967,488 @@ if (manageFeesForm) {
             submitBtn.disabled = false;
         }
     });
+}
+
+// Quiz and Question Management
+let activeQuizTopicId = null;
+let activeQuizTopicName = '';
+let activeQuizId = null;
+
+async function openManageQuizModal(topicId, topicName) {
+    activeQuizTopicId = topicId;
+    activeQuizTopicName = topicName;
+    activeQuizId = null;
+
+    const modal = document.getElementById('manageQuizModal');
+    if (!modal) return;
+
+    document.getElementById('quizModalTitle').textContent = `Manage Quiz: ${topicName}`;
+    document.getElementById('quizModalSubtitle').textContent = `Loading quiz configuration for ${topicName}...`;
+    document.getElementById('quizQuestionsList').innerHTML = '<div style="text-align: center; color: var(--text-secondary); padding: 15px; font-size: 13px;">Loading questions...</div>';
+    document.getElementById('quizQuestionsCountBadge').textContent = '0 Questions';
+    
+    const form = document.getElementById('addQuizQuestionForm');
+    if (form) form.reset();
+    document.getElementById('newCorrectOption').value = 'A';
+    document.getElementById('newQuestionMarks').value = 1;
+
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+
+    try {
+        // Fetch or create quiz for this topic
+        const res = await fetch(`/apiv1/quizzes?topicId=${topicId}`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!res.ok) {
+            throw new Error('Failed to fetch topic quiz');
+        }
+
+        const quizzes = await res.json();
+        let quiz = quizzes && quizzes.length > 0 ? quizzes[0] : null;
+
+        if (!quiz) {
+            // Auto-create quiz for this topic
+            document.getElementById('quizModalSubtitle').textContent = `Initializing new quiz for "${topicName}"...`;
+            const createRes = await fetch('/apiv1/quizzes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({
+                    topicId: topicId,
+                    title: `${topicName} Quiz`,
+                    description: `Quiz assessment for ${topicName}`,
+                    timeLimitMinutes: 10
+                })
+            });
+
+            if (!createRes.ok) {
+                const errData = await createRes.json().catch(() => ({}));
+                throw new Error(errData.message || 'Failed to initialize quiz for this topic');
+            }
+            quiz = await createRes.json();
+        }
+
+        activeQuizId = quiz.quizId || quiz.id;
+        document.getElementById('activeQuizId').value = activeQuizId;
+        document.getElementById('quizModalSubtitle').textContent = `Quiz: "${quiz.title}" (Time Limit: ${quiz.timeLimitMinutes || 10} mins)`;
+
+        switchQuizModalTab('questions');
+        await loadQuizQuestions(activeQuizId);
+    } catch (err) {
+        console.error('Quiz error:', err);
+        showToast(err.message, false);
+        document.getElementById('quizQuestionsList').innerHTML = `<div style="text-align: center; color: #ef4444; padding: 15px; font-size: 13px;">Error: ${err.message}</div>`;
+    }
+}
+
+function closeManageQuizModal() {
+    const modal = document.getElementById('manageQuizModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+}
+
+async function loadQuizQuestions(quizId) {
+    const listEl = document.getElementById('quizQuestionsList');
+    const badgeEl = document.getElementById('quizQuestionsCountBadge');
+    if (!listEl) return;
+
+    try {
+        const res = await fetch(`/apiv1/questions?quizId=${quizId}`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!res.ok) throw new Error('Failed to load questions');
+        const questions = await res.json();
+
+        if (badgeEl) {
+            badgeEl.textContent = `${questions.length} Question${questions.length === 1 ? '' : 's'}`;
+        }
+
+        if (!questions || questions.length === 0) {
+            listEl.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: var(--text-secondary); background: rgba(255, 255, 255, 0.02); border: 1px dashed var(--border-color); border-radius: 10px;">
+                    <p style="font-size: 13px;">No questions written for this topic yet.</p>
+                    <p style="font-size: 12px; margin-top: 4px; color: #9ca3af;">Use the form below to write questions and options manually.</p>
+                </div>
+            `;
+            return;
+        }
+
+        listEl.innerHTML = questions.map((q, idx) => {
+            const correct = (q.correctAnswer || '').trim();
+            const qId = q.questionId || q.id;
+
+            const isCorrectA = correct.toUpperCase() === 'A' || correct.toLowerCase() === (q.optionA || '').trim().toLowerCase();
+            const isCorrectB = correct.toUpperCase() === 'B' || correct.toLowerCase() === (q.optionB || '').trim().toLowerCase();
+            const isCorrectC = correct.toUpperCase() === 'C' || (q.optionC && correct.toLowerCase() === q.optionC.trim().toLowerCase());
+            const isCorrectD = correct.toUpperCase() === 'D' || (q.optionD && correct.toLowerCase() === q.optionD.trim().toLowerCase());
+
+            return `
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px;">
+                        <span style="font-size: 13px; font-weight: 600; color: var(--text-primary); line-height: 1.4;">
+                            <strong style="color: var(--accent-primary);">Q${idx + 1}.</strong> ${escapeHtml(q.questionText || q.content || '')}
+                        </span>
+                        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                            <span style="background: rgba(139, 92, 246, 0.15); color: #c4b5fd; font-size: 11px; padding: 2px 7px; border-radius: 6px;">${q.marks || 1} mk</span>
+                            <button type="button" onclick="deleteQuizQuestion(${qId})" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 6px; padding: 2px 8px; font-size: 11px; cursor: pointer;" title="Delete this question">Delete</button>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 12px; margin-top: 6px;">
+                        <div style="padding: 4px 8px; border-radius: 6px; background: ${isCorrectA ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border: 1px solid ${isCorrectA ? '#10b981' : 'var(--border-color)'}; color: ${isCorrectA ? '#34d399' : 'var(--text-secondary)'};">
+                            <strong>A:</strong> ${escapeHtml(q.optionA || '')} ${isCorrectA ? '✓' : ''}
+                        </div>
+                        <div style="padding: 4px 8px; border-radius: 6px; background: ${isCorrectB ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border: 1px solid ${isCorrectB ? '#10b981' : 'var(--border-color)'}; color: ${isCorrectB ? '#34d399' : 'var(--text-secondary)'};">
+                            <strong>B:</strong> ${escapeHtml(q.optionB || '')} ${isCorrectB ? '✓' : ''}
+                        </div>
+                        ${q.optionC ? `
+                        <div style="padding: 4px 8px; border-radius: 6px; background: ${isCorrectC ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border: 1px solid ${isCorrectC ? '#10b981' : 'var(--border-color)'}; color: ${isCorrectC ? '#34d399' : 'var(--text-secondary)'};">
+                            <strong>C:</strong> ${escapeHtml(q.optionC)} ${isCorrectC ? '✓' : ''}
+                        </div>` : ''}
+                        ${q.optionD ? `
+                        <div style="padding: 4px 8px; border-radius: 6px; background: ${isCorrectD ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.02)'}; border: 1px solid ${isCorrectD ? '#10b981' : 'var(--border-color)'}; color: ${isCorrectD ? '#34d399' : 'var(--text-secondary)'};">
+                            <strong>D:</strong> ${escapeHtml(q.optionD)} ${isCorrectD ? '✓' : ''}
+                        </div>` : ''}
+                    </div>
+                    ${q.explanation ? `
+                        <div style="margin-top: 6px; font-size: 11px; color: var(--text-secondary); font-style: italic;">
+                            💡 <em>${escapeHtml(q.explanation)}</em>
+                        </div>` : ''}
+                </div>
+            `;
+        }).join('');
+    } catch (err) {
+        listEl.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 15px; font-size: 13px;">Error: ${err.message}</div>`;
+    }
+}
+
+async function deleteQuizQuestion(questionId) {
+    if (!confirm('Are you sure you want to delete this question?')) return;
+    try {
+        const res = await fetch(`/apiv1/questions/${questionId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.message || 'Failed to delete question');
+        }
+        showToast('Question deleted successfully', true);
+        if (activeQuizId) {
+            await loadQuizQuestions(activeQuizId);
+        }
+    } catch (err) {
+        showToast(err.message, false);
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+const addQuizQForm = document.getElementById('addQuizQuestionForm');
+if (addQuizQForm) {
+    addQuizQForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const quizId = parseInt(document.getElementById('activeQuizId').value);
+        if (!quizId) {
+            showToast('No active quiz selected', false);
+            return;
+        }
+
+        const questionText = document.getElementById('newQuestionText').value.trim();
+        const optionA = document.getElementById('newOptionA').value.trim();
+        const optionB = document.getElementById('newOptionB').value.trim();
+        const optionC = document.getElementById('newOptionC').value.trim();
+        const optionD = document.getElementById('newOptionD').value.trim();
+        const correctOption = document.getElementById('newCorrectOption').value;
+        const marks = parseInt(document.getElementById('newQuestionMarks').value) || 1;
+        const explanation = document.getElementById('newQuestionExplanation').value.trim();
+
+        if (!questionText || !optionA || !optionB) {
+            showToast('Please provide question text, Option A, and Option B', false);
+            return;
+        }
+
+        if (correctOption === 'C' && !optionC) {
+            showToast('Option C cannot be empty if it is selected as the correct option', false);
+            return;
+        }
+        if (correctOption === 'D' && !optionD) {
+            showToast('Option D cannot be empty if it is selected as the correct option', false);
+            return;
+        }
+
+        const submitBtn = document.getElementById('addQuestionSubmitBtn');
+        submitBtn.textContent = 'Adding...';
+        submitBtn.disabled = true;
+
+        const payload = {
+            quizId: quizId,
+            questionText: questionText,
+            optionA: optionA,
+            optionB: optionB,
+            optionC: optionC || null,
+            optionD: optionD || null,
+            correctAnswer: correctOption,
+            explanation: explanation || null,
+            marks: marks
+        };
+
+        try {
+            console.log(">>> [API REQUEST] POST /apiv1/questions", payload);
+            const res = await fetch('/apiv1/questions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                let errMsg = errData.message || 'Failed to add question';
+                const fErrors = errData.fieldErrors || errData.fields;
+                if (fErrors && fErrors.length > 0) {
+                    errMsg = fErrors.map(f => `${f.field}: ${f.message}`).join(', ');
+                }
+                throw new Error(errMsg);
+            }
+
+            showToast('Question added successfully!', true);
+            document.getElementById('newQuestionText').value = '';
+            document.getElementById('newOptionA').value = '';
+            document.getElementById('newOptionB').value = '';
+            document.getElementById('newOptionC').value = '';
+            document.getElementById('newOptionD').value = '';
+            document.getElementById('newQuestionExplanation').value = '';
+            document.getElementById('newCorrectOption').value = 'A';
+            document.getElementById('newQuestionMarks').value = 1;
+            document.getElementById('newQuestionText').focus();
+
+            await loadQuizQuestions(quizId);
+        } catch (err) {
+            showToast(err.message, false);
+        } finally {
+            submitBtn.textContent = '+ Add Question';
+            submitBtn.disabled = false;
+        }
+    });
+}
+
+function switchQuizModalTab(tab) {
+    const qTabBtn = document.getElementById('tabQuizQuestionsBtn');
+    const aTabBtn = document.getElementById('tabQuizAttemptsBtn');
+    const qView = document.getElementById('quizQuestionsTabView');
+    const aView = document.getElementById('quizAttemptsTabView');
+
+    if (tab === 'attempts') {
+        if (qTabBtn) qTabBtn.classList.remove('active');
+        if (aTabBtn) aTabBtn.classList.add('active');
+        if (qView) qView.style.display = 'none';
+        if (aView) aView.style.display = 'block';
+        loadQuizAttemptsForActiveQuiz();
+    } else {
+        if (aTabBtn) aTabBtn.classList.remove('active');
+        if (qTabBtn) qTabBtn.classList.add('active');
+        if (aView) aView.style.display = 'none';
+        if (qView) qView.style.display = 'flex';
+    }
+}
+
+async function loadQuizAttemptsForActiveQuiz() {
+    if (!activeQuizId) return;
+    const tbody = document.getElementById('quizAttemptsListTableBody');
+    const badge = document.getElementById('quizAttemptsCountBadge');
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 20px;">Loading student attempts...</td></tr>`;
+
+    try {
+        const res = await fetch(`/apiv1/quiz-attempts?quizId=${activeQuizId}`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!res.ok) throw new Error('Failed to load quiz attempts');
+        const attempts = await res.json();
+
+        if (badge) {
+            badge.textContent = `${attempts.length} Submission${attempts.length === 1 ? '' : 's'}`;
+        }
+
+        if (!attempts || attempts.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 25px; color: var(--text-secondary);">
+                        <p style="font-size: 13px;">No student has submitted an attempt for this quiz yet.</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = attempts.map(att => {
+            const pct = Math.round(att.percentage || 0);
+            let pctColor = '#ef4444';
+            let pctBg = 'rgba(239, 68, 68, 0.15)';
+            if (pct >= 80) {
+                pctColor = '#34d399';
+                pctBg = 'rgba(16, 185, 129, 0.15)';
+            } else if (pct >= 50) {
+                pctColor = '#fbbf24';
+                pctBg = 'rgba(245, 158, 11, 0.15)';
+            }
+
+            const dateStr = att.completedAt ? new Date(att.completedAt).toLocaleString() : (att.startedAt ? new Date(att.startedAt).toLocaleString() : '--');
+            const studentName = att.studentName || `Student #${att.studentId || '--'}`;
+
+            return `
+                <tr style="border-bottom: 1px solid var(--border-color); font-size: 13px;">
+                    <td style="padding: 10px 12px; font-weight: 700; color: var(--text-secondary);">#${att.attemptId}</td>
+                    <td style="padding: 10px 12px; font-weight: 600; color: #ffffff;">${escapeHtml(studentName)}</td>
+                    <td style="padding: 10px 12px; font-weight: 600;">${att.score} / ${att.totalMarks}</td>
+                    <td style="padding: 10px 12px;">
+                        <span style="background: ${pctBg}; color: ${pctColor}; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 11px;">
+                            ${pct}%
+                        </span>
+                    </td>
+                    <td style="padding: 10px 12px; color: var(--text-secondary); font-size: 12px;">${dateStr}</td>
+                    <td style="padding: 10px 12px; text-align: right; display: flex; justify-content: flex-end; gap: 8px;">
+                        <button type="button" onclick="viewStudentAttemptDetails(${att.attemptId})" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.35); color: #c4b5fd; border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer;">
+                            Inspect
+                        </button>
+                        <button type="button" onclick="deleteQuizAttempt(${att.attemptId})" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer;">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 15px;">Error: ${err.message}</td></tr>`;
+    }
+}
+
+async function viewStudentAttemptDetails(attemptId) {
+    const modal = document.getElementById('reviewStudentAttemptModal');
+    const body = document.getElementById('reviewStudentAttemptModalBody');
+    const subtitle = document.getElementById('reviewAttemptModalSubtitle');
+    if (!modal || !body) return;
+
+    modal.style.display = 'flex';
+    body.innerHTML = `<div class="loading-spinner" style="text-align: center; padding: 30px;">Loading submission details...</div>`;
+
+    try {
+        const res = await fetch(`/apiv1/quiz-attempts/${attemptId}`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!res.ok) throw new Error('Failed to load attempt details');
+        const att = await res.json();
+
+        if (subtitle) {
+            subtitle.textContent = `Student: ${att.studentName || '#' + att.studentId} | Score: ${att.score}/${att.totalMarks} (${Math.round(att.percentage || 0)}%)`;
+        }
+
+        const qaList = att.questionAttempts || [];
+        const itemsHtml = qaList.map((qa, idx) => {
+            const isAnswered = qa.selectedAnswer && qa.selectedAnswer.trim() !== '';
+            const isCorrect = qa.isCorrect;
+            const borderCol = !isAnswered ? '#f59e0b' : (isCorrect ? '#10b981' : '#ef4444');
+
+            return `
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-left: 4px solid ${borderCol}; border-radius: 10px; padding: 14px; margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <span style="font-weight: 700; font-size: 13px; color: var(--text-secondary);">Question ${idx + 1}</span>
+                        <span style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; ${isCorrect ? 'background: rgba(16,185,129,0.15); color: #34d399;' : 'background: rgba(239,68,68,0.15); color: #f87171;'}">
+                            ${isCorrect ? `✓ Correct (+${qa.marksAwarded || qa.questionMarks || 1} mk)` : '✗ Incorrect (0 mk)'}
+                        </span>
+                    </div>
+                    <div style="font-size: 14px; font-weight: 600; color: #ffffff; margin-bottom: 10px; line-height: 1.4;">
+                        ${escapeHtml(qa.questionText || '')}
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; margin-bottom: 8px;">
+                        <div style="background: rgba(255, 255, 255, 0.02); padding: 6px 10px; border-radius: 6px;">
+                            <span style="color: var(--text-secondary);">Selected: </span>
+                            <strong style="color: ${isCorrect ? '#34d399' : (isAnswered ? '#f87171' : '#fbbf24')};">
+                                ${escapeHtml(qa.selectedAnswer || 'Not Answered')}
+                            </strong>
+                        </div>
+                        <div style="background: rgba(16, 185, 129, 0.08); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                            <span style="color: var(--text-secondary);">Correct: </span>
+                            <strong style="color: #34d399;">${escapeHtml(qa.correctAnswer || '')}</strong>
+                        </div>
+                    </div>
+                    ${qa.explanation ? `
+                        <div style="font-size: 11px; color: #c4b5fd; background: rgba(139, 92, 246, 0.1); padding: 6px 10px; border-radius: 6px;">
+                            💡 <em>${escapeHtml(qa.explanation)}</em>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+
+        body.innerHTML = `
+            <div style="margin-bottom: 16px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; text-align: center;">
+                <div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">SCORE</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #ffffff;">${att.score} / ${att.totalMarks}</div>
+                </div>
+                <div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">PERCENTAGE</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #38bdf8;">${Math.round(att.percentage || 0)}%</div>
+                </div>
+                <div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">QUESTIONS</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #a5b4fc;">${qaList.length}</div>
+                </div>
+                <div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">STATUS</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #34d399;">${escapeHtml(att.status || 'DONE')}</div>
+                </div>
+            </div>
+            <div>
+                <h4 style="font-size: 14px; font-weight: 700; color: #ffffff; margin-bottom: 10px;">Question Breakdown</h4>
+                ${itemsHtml}
+            </div>
+        `;
+    } catch (err) {
+        body.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 20px;">Failed to load submission: ${err.message}</div>`;
+    }
+}
+
+function closeReviewStudentAttemptModal() {
+    const modal = document.getElementById('reviewStudentAttemptModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function deleteQuizAttempt(attemptId) {
+    if (!confirm('Are you sure you want to delete this student quiz attempt?')) return;
+    try {
+        const res = await fetch(`/apiv1/quiz-attempts/${attemptId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.message || 'Failed to delete attempt');
+        }
+        showToast('Attempt deleted successfully', true);
+        await loadQuizAttemptsForActiveQuiz();
+    } catch (err) {
+        showToast(err.message, false);
+    }
 }

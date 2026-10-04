@@ -18,7 +18,7 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void configurePathMatch(PathMatchConfigurer configurer) {
-        configurer.addPathPrefix("/apiv1", HandlerTypePredicate.forAnnotation(RestController.class));
+        configurer.addPathPrefix("/apiv1", HandlerTypePredicate.forBasePackage("md_classes.portal.controller"));
     }
 
     @Override

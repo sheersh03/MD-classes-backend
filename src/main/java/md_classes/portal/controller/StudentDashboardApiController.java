@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/student-dashboard")
+@RequestMapping({"/student-dashboard", "/studentdashboard"})
 public class StudentDashboardApiController {
 
     private final AuthService authService;
@@ -38,12 +38,13 @@ public class StudentDashboardApiController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest req) {
+    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest req, jakarta.servlet.http.HttpServletResponse httpResponse) {
         AuthResponse response = authService.login(req);
         Role role = response.user().role();
         if (role != Role.STUDENT) {
             throw new ForbiddenException("Only students can login to the student dashboard");
         }
+        md_classes.portal.config.CookieUtils.setAuthCookie(httpResponse, response.accessToken());
         return ResponseEntity.ok(response);
     }
 

@@ -51,6 +51,7 @@ tasks.named('test') {
 }
 
 tasks.named('bootRun') {
+	systemProperty 'user.timezone', 'UTC'
 	if (file(".env").exists()) {
 		file(".env").readLines().each { line ->
 			def trimmed = line.trim()

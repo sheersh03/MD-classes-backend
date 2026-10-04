@@ -23,12 +23,15 @@ public class JspServlet extends HttpServlet {
                 req.getRequestDispatcher("/WEB-INF/jsp/dashboard.jsp").forward(req, resp);
                 break;
             case "/student-dashboard":
+            case "/studentdashboard":
                 req.getRequestDispatcher("/WEB-INF/jsp/student-dashboard.jsp").forward(req, resp);
                 break;
             case "/parent-dashboard":
+            case "/parentdashboard":
                 req.getRequestDispatcher("/WEB-INF/jsp/parent-dashboard.jsp").forward(req, resp);
                 break;
             case "/class-dashboard":
+            case "/classdashboard":
                 req.getRequestDispatcher("/WEB-INF/jsp/class-dashboard.jsp").forward(req, resp);
                 break;
             default:

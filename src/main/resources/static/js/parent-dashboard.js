@@ -304,6 +304,10 @@ function switchPanel(panel) {
         document.getElementById('btn-syllabus').classList.add('active');
         document.getElementById('syllabusPanel').classList.add('active');
         loadCurriculumAndProgress();
+    } else if (panel === 'quizzes') {
+        document.getElementById('btn-quizzes').classList.add('active');
+        document.getElementById('quizzesPanel').classList.add('active');
+        loadChildQuizAttempts();
     }
 }
 
@@ -622,6 +626,7 @@ function closeProgressModal() {
 
 function logout() {
     localStorage.clear();
+    document.cookie = "accessToken=; path=/; max-age=0; SameSite=Lax";
     window.location.href = '/login';
 }
 
@@ -736,4 +741,210 @@ async function loadStudentTransactions() {
     } catch (err) {
         tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 15px;">Error: ${err.message}</td></tr>`;
     }
+}
+
+async function loadChildQuizAttempts() {
+    const tableBody = document.getElementById('parentQuizAttemptsTableBody');
+    if (!tableBody) return;
+
+    if (!studentId) {
+        tableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary); padding: 25px;">Child student ID not resolved yet.</td></tr>`;
+        return;
+    }
+
+    try {
+        const res = await fetch(`/apiv1/quiz-attempts?studentId=${studentId}`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (!res.ok) throw new Error('Failed to load child quiz attempts');
+        const attempts = await res.json();
+
+        const totalAttempts = attempts.length;
+        let avgScore = 0;
+        let bestScore = 0;
+        let passedCount = 0;
+
+        if (totalAttempts > 0) {
+            const sumPct = attempts.reduce((acc, a) => acc + (a.percentage || 0), 0);
+            avgScore = Math.round(sumPct / totalAttempts);
+            bestScore = Math.round(Math.max(...attempts.map(a => a.percentage || 0)));
+            passedCount = attempts.filter(a => (a.percentage || 0) >= 50).length;
+        }
+
+        const statTotal = document.getElementById('statParentTotalAttempts');
+        const statAvg = document.getElementById('statParentAvgScore');
+        const statBest = document.getElementById('statParentBestScore');
+        const statPassed = document.getElementById('statParentPassedQuizzes');
+
+        if (statTotal) statTotal.textContent = totalAttempts;
+        if (statAvg) statAvg.textContent = `${avgScore}%`;
+        if (statBest) statBest.textContent = `${bestScore}%`;
+        if (statPassed) statPassed.textContent = passedCount;
+
+        if (totalAttempts === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                        <div style="font-size: 32px; margin-bottom: 8px;">📝</div>
+                        <div style="font-size: 15px; font-weight: 600; color: #ffffff; margin-bottom: 4px;">No Quiz Attempts Recorded</div>
+                        <div style="font-size: 13px;">Your child has not attempted any quizzes yet.</div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tableBody.innerHTML = attempts.map(att => {
+            const pct = Math.round(att.percentage || 0);
+            let pctColor = '#ef4444';
+            let pctBg = 'rgba(239, 68, 68, 0.15)';
+            if (pct >= 80) {
+                pctColor = '#34d399';
+                pctBg = 'rgba(16, 185, 129, 0.15)';
+            } else if (pct >= 50) {
+                pctColor = '#fbbf24';
+                pctBg = 'rgba(245, 158, 11, 0.15)';
+            }
+
+            const dateStr = att.completedAt ? new Date(att.completedAt).toLocaleString() : (att.startedAt ? new Date(att.startedAt).toLocaleString() : '--');
+
+            return `
+                <tr style="border-bottom: 1px solid var(--border-color); font-size: 13px;">
+                    <td style="padding: 14px; font-weight: 700; color: var(--text-secondary);">#${att.attemptId}</td>
+                    <td style="padding: 14px; font-weight: 600; color: #ffffff;">${escapeParentHtml(att.quizTitle || 'Practice Quiz')}</td>
+                    <td style="padding: 14px; color: var(--text-secondary);">${dateStr}</td>
+                    <td style="padding: 14px; font-weight: 600;">${att.score} / ${att.totalMarks}</td>
+                    <td style="padding: 14px;">
+                        <span style="background: ${pctBg}; color: ${pctColor}; padding: 3px 10px; border-radius: 8px; font-weight: 700; font-size: 12px;">
+                            ${pct}%
+                        </span>
+                    </td>
+                    <td style="padding: 14px;">
+                        <span style="background: rgba(99, 102, 241, 0.15); color: #a5b4fc; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">
+                            ${att.status || 'COMPLETED'}
+                        </span>
+                    </td>
+                    <td style="padding: 14px; text-align: right;">
+                        <button type="button" onclick="viewChildQuizAttempt(${att.attemptId})" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.35); color: #c4b5fd; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                            👁️ View Report
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #ef4444; padding: 25px;">Failed to load attempts: ${err.message}</td></tr>`;
+    }
+}
+
+async function viewChildQuizAttempt(attemptId) {
+    const modal = document.getElementById('parentQuizReviewModal');
+    const content = document.getElementById('parentQuizReviewModalContent');
+    if (!modal || !content) return;
+
+    modal.style.display = 'flex';
+    content.innerHTML = `<div style="text-align: center; padding: 40px;"><div class="loading-spinner">Loading child report...</div></div>`;
+
+    try {
+        const res = await fetch(`/apiv1/quiz-attempts/${attemptId}`, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) throw new Error('Failed to load attempt details');
+        const att = await res.json();
+
+        const pct = Math.round(att.percentage || 0);
+        const qaList = att.questionAttempts || [];
+        const correct = att.correctAnswersCount !== undefined ? att.correctAnswersCount : qaList.filter(q => q.isCorrect).length;
+
+        const itemsHtml = qaList.map((qa, idx) => {
+            const isAnswered = qa.selectedAnswer && qa.selectedAnswer.trim() !== '';
+            const isCorrect = qa.isCorrect;
+            const borderCol = !isAnswered ? '#f59e0b' : (isCorrect ? '#10b981' : '#ef4444');
+
+            return `
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-left: 4px solid ${borderCol}; border-radius: 12px; padding: 16px; margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <span style="font-weight: 700; font-size: 13px; color: var(--text-secondary);">Question ${idx + 1}</span>
+                        <span style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; ${isCorrect ? 'background: rgba(16,185,129,0.15); color: #34d399;' : 'background: rgba(239,68,68,0.15); color: #f87171;'}">
+                            ${isCorrect ? `✓ Correct (+${qa.marksAwarded || qa.questionMarks || 1} mk)` : '✗ Incorrect (0 mk)'}
+                        </span>
+                    </div>
+                    <div style="font-size: 15px; font-weight: 600; color: #ffffff; margin-bottom: 12px; line-height: 1.5;">
+                        ${escapeParentHtml(qa.questionText || '')}
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; margin-bottom: 10px;">
+                        <div style="background: rgba(255, 255, 255, 0.02); padding: 8px 12px; border-radius: 8px;">
+                            <span style="color: var(--text-secondary);">Child's Answer: </span>
+                            <strong style="color: ${isCorrect ? '#34d399' : (isAnswered ? '#f87171' : '#fbbf24')};">
+                                ${escapeParentHtml(qa.selectedAnswer || 'Not Answered')}
+                            </strong>
+                        </div>
+                        <div style="background: rgba(16, 185, 129, 0.08); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                            <span style="color: var(--text-secondary);">Correct Answer: </span>
+                            <strong style="color: #34d399;">${escapeParentHtml(qa.correctAnswer || '')}</strong>
+                        </div>
+                    </div>
+                    ${qa.explanation ? `
+                        <div style="background: rgba(99, 102, 241, 0.08); border-left: 3px solid #818cf8; padding: 8px 12px; border-radius: 0 8px 8px 0; font-size: 12px; color: #c7d2fe;">
+                            💡 <strong>Explanation: </strong>${escapeParentHtml(qa.explanation)}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+
+        content.innerHTML = `
+            <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 14px; margin-bottom: 20px;">
+                    <div>
+                        <div style="font-size: 11px; font-weight: 700; color: var(--accent-secondary); text-transform: uppercase;">
+                            Child Assessment Report
+                        </div>
+                        <h2 style="font-size: 22px; font-weight: 800; color: #ffffff; margin: 2px 0 0;">${escapeParentHtml(att.quizTitle || 'Topic Quiz')}</h2>
+                    </div>
+                    <button type="button" onclick="closeParentQuizReviewModal()" style="background: none; border: none; color: var(--text-secondary); font-size: 26px; cursor: pointer;">&times;</button>
+                </div>
+
+                <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(168, 85, 247, 0.15)); border: 1px solid rgba(168, 85, 247, 0.35); border-radius: 20px; padding: 20px; text-align: center; margin-bottom: 22px;">
+                    <div style="font-size: 42px; font-weight: 900; background: linear-gradient(135deg, #10b981, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 4px;">
+                        ${pct}%
+                    </div>
+                    <div style="font-size: 15px; font-weight: 600; color: #ffffff; margin-bottom: 10px;">
+                        Score: ${att.score} / ${att.totalMarks} Marks (${correct} of ${qaList.length} Correct)
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h3 style="font-size: 16px; font-weight: 700; color: #ffffff; margin-bottom: 12px;">Detailed Questions Review</h3>
+                    <div style="max-height: 380px; overflow-y: auto; padding-right: 6px;">
+                        ${itemsHtml}
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 14px;">
+                    <button type="button" onclick="closeParentQuizReviewModal()" style="background: rgba(255, 255, 255, 0.08); border: 1px solid var(--border-color); color: #ffffff; padding: 10px 24px; border-radius: 12px; font-weight: 600; cursor: pointer;">
+                        Close Report
+                    </button>
+                </div>
+            </div>
+        `;
+    } catch (err) {
+        content.innerHTML = `<div style="text-align: center; padding: 30px; color: #ef4444;">Failed to load report: ${err.message}</div>`;
+    }
+}
+
+function closeParentQuizReviewModal() {
+    const modal = document.getElementById('parentQuizReviewModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function escapeParentHtml(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
