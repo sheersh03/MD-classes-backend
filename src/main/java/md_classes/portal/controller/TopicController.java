@@ -61,7 +61,7 @@ public class TopicController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER') or hasAuthority('ROLE_ADMIN') or hasAuthority('ROLE_TEACHER')")
     public ResponseEntity<Void> delete(@PathVariable Integer id) {
         topicService.delete(id);
         return ResponseEntity.noContent().build();

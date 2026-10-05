@@ -33,10 +33,11 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public AuthResponse login(@Valid @RequestBody LoginRequest req) {
+    public AuthResponse login(@Valid @RequestBody LoginRequest req, jakarta.servlet.http.HttpServletResponse httpResponse) {
         System.out.println("=== API REQUEST: POST /apiv1/auth/login ===");
         System.out.println("Request Body: " + req);
         AuthResponse response = auth.login(req);
+        md_classes.portal.config.CookieUtils.setAuthCookie(httpResponse, response.accessToken());
         System.out.println("=== API RESPONSE: POST /apiv1/auth/login ===");
         System.out.println("Response Body: " + response);
         System.out.println("==========================================");
@@ -44,13 +45,15 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public AuthResponse refresh(@Valid @RequestBody RefreshRequest req) {
-        return auth.refresh(req);
+    public AuthResponse refresh(@Valid @RequestBody RefreshRequest req, jakarta.servlet.http.HttpServletResponse httpResponse) {
+        AuthResponse response = auth.refresh(req);
+        md_classes.portal.config.CookieUtils.setAuthCookie(httpResponse, response.accessToken());
+        return response;
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout() {
-        // Stateless JWT — client just drops the tokens. Revocation list deferred.
+    public ResponseEntity<Void> logout(jakarta.servlet.http.HttpServletResponse httpResponse) {
+        md_classes.portal.config.CookieUtils.clearAuthCookie(httpResponse);
         return ResponseEntity.noContent().build();
     }
 
