@@ -64,8 +64,15 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/apiv1/auth/**",
                                 "/v3/api-docs/**",
+                                "/v3/api-docs",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
+                                "/swagger-resources/**",
+                                "/webjars/**",
+                                "/apiv1/v3/api-docs/**",
+                                "/apiv1/v3/api-docs",
+                                "/apiv1/swagger-ui/**",
+                                "/apiv1/swagger-ui.html",
                                 "/actuator/health",
                                 "/apiv1/world",
                                 "/h2-console/**",
@@ -73,17 +80,21 @@ public class SecurityConfig {
                                 "/error",
                                 "/dashboard",
                                 "/student-dashboard",
+                                "/studentdashboard",
                                 "/parent-dashboard",
+                                "/parentdashboard",
+                                "/class-dashboard",
+                                "/classdashboard",
                                 "/apiv1/student-dashboard/login",
+                                "/apiv1/studentdashboard/login",
                                 "/apiv1/parent-dashboard/login",
+                                "/apiv1/parentdashboard/login",
                                 "/css/**",
                                 "/js/**",
                                 "/syllabus/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
-
-
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

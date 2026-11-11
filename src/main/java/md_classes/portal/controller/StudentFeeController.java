@@ -88,6 +88,7 @@ public class StudentFeeController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER') or hasAuthority('ROLE_ADMIN') or hasAuthority('ROLE_TEACHER')")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public ResponseEntity<List<StudentFeeResponse>> getAllFees() {
         List<Student> allStudents = studentRepository.findAll();
         List<StudentFeeResponse> responses = allStudents.stream().map(student -> {

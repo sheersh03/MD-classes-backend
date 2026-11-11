@@ -33,9 +33,15 @@ public class JspServletConfig implements ServletContextInitializer {
             registration.addMapping("/login");
             registration.addMapping("/dashboard");
             registration.addMapping("/student-dashboard");
+            registration.addMapping("/studentdashboard");
             registration.addMapping("/parent-dashboard");
+            registration.addMapping("/parentdashboard");
             registration.addMapping("/class-dashboard");
-            System.out.println("Registered fallback mappings for JspServlet");
+            registration.addMapping("/classdashboard");
         }
+        // Also map unhyphenated URL aliases for convenience
+        registration.addMapping("/studentdashboard");
+        registration.addMapping("/parentdashboard");
+        registration.addMapping("/classdashboard");
     }
 }

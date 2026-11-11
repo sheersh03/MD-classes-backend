@@ -73,9 +73,8 @@ public class UnitService {
 
     @Transactional
     public void delete(Integer id) {
-        if (!unitRepository.existsById(id)) {
-            throw new NotFoundException("Unit with ID " + id + " not found");
-        }
-        unitRepository.deleteById(id);
+        Unit unit = unitRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Unit with ID " + id + " not found"));
+        unitRepository.delete(unit);
     }
 }

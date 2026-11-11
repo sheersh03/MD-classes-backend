@@ -87,6 +87,7 @@ document.getElementById('signinForm').addEventListener('submit', async (e) => {
 
         localStorage.setItem('accessToken', data.accessToken);
         localStorage.setItem('user', JSON.stringify(data.user));
+        document.cookie = `accessToken=${data.accessToken}; path=/; max-age=604800; SameSite=Lax`;
         if (data.user && data.user.role === 'STUDENT') {
             window.location.href = '/student-dashboard';
         } else if (data.user && data.user.role === 'PARENT') {
@@ -143,6 +144,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
 
         localStorage.setItem('accessToken', data.accessToken);
         localStorage.setItem('user', JSON.stringify(data.user));
+        document.cookie = `accessToken=${data.accessToken}; path=/; max-age=604800; SameSite=Lax`;
         if (data.user && data.user.role === 'STUDENT') {
             window.location.href = '/student-dashboard';
         } else if (data.user && data.user.role === 'PARENT') {
