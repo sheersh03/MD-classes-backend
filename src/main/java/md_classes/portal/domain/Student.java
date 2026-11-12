@@ -68,6 +68,7 @@ public class Student {
     }
 
     public Long getId() { return id; }
+    public Long getStudentId() { return id; }
     public User getUser() { return user; }
     public String getCourse() { return course; }
     public String getBatchId() { return batchId; }
